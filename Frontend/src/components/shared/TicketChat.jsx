@@ -2,12 +2,18 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, User, ShieldCheck, Bot, MessageSquare, Circle, Loader2 } from 'lucide-react';
 import { supabase } from "../../lib/supabaseClient";
 import useAuthStore from "../../store/authStore";
+import { mergeChatMessages } from './chatMessages.mjs';
 
 const TicketChat = ({ ticketId, currentUserRole = 'user' }) => {
     const [messages, setMessages] = useState([]);
     const [inputValue, setInputValue] = useState('');
     const [isTyping, setIsTyping] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [connectionStatus, setConnectionStatus] = useState('Connecting');
+    const [sendError, setSendError] = useState('');
+    const activeTicketRef = useRef(ticketId);
+    const sendingRef = useRef(false);
+    const typingTimerRef = useRef(null);
 // eslint-disable-next-line no-unused-vars
     const [unreadCount, setUnreadCount] = useState(0);
     const [isAtBottom, setIsAtBottom] = useState(true);
@@ -24,7 +30,7 @@ const TicketChat = ({ ticketId, currentUserRole = 'user' }) => {
     // ─── Fetch Messages ──────────────────────────────────────────────────
     const fetchMessages = async () => {
         if (!ticketId) return;
-        setLoading(true);
+        const fetchingTicket = ticketId;
         try {
             // 1. Fetch Public Messages
             const { data: publicMsgs, error: pubErr } = await supabase
@@ -64,17 +70,24 @@ const TicketChat = ({ ticketId, currentUserRole = 'user' }) => {
                 (a, b) => new Date(a.created_at) - new Date(b.created_at)
             );
 
-            setMessages(combined);
+            if (activeTicketRef.current === fetchingTicket) {
+                setMessages(previous => mergeChatMessages(previous, combined));
+            }
         } catch (err) {
             console.error("Error fetching messages:", err);
         } finally {
-            setLoading(false);
+            if (activeTicketRef.current === fetchingTicket) setLoading(false);
             setTimeout(() => scrollToBottom(false), 50);
         }
     };
 
     // ─── Realtime Subscription ───────────────────────────────────────────
     useEffect(() => {
+        if (!ticketId || !user?.id) return;
+        activeTicketRef.current = ticketId;
+        setMessages([]);
+        setLoading(true);
+        setConnectionStatus('Connecting');
         fetchMessages();
 
         const channel = supabase.channel(`ticket_chat_${ticketId}`);
@@ -91,6 +104,7 @@ const TicketChat = ({ ticketId, currentUserRole = 'user' }) => {
                     filter: `ticket_id=eq.${ticketId}`
                 },
                 (payload) => {
+                    if (activeTicketRef.current !== ticketId) return;
                     const newMessage = payload.new;
                     setMessages((prev) => {
                         // Avoid duplicates if we already added it locally
@@ -116,22 +130,38 @@ const TicketChat = ({ ticketId, currentUserRole = 'user' }) => {
                 (payload) => {
                     if (payload.payload.user_id !== user?.id) {
                         setIsTyping(true);
-                        clearTimeout(window.typingTimeout);
-                        window.typingTimeout = setTimeout(() => {
+                        clearTimeout(typingTimerRef.current);
+                        typingTimerRef.current = setTimeout(() => {
                             setIsTyping(false);
                         }, 3000);
                         setTimeout(() => scrollToBottom(), 50);
                     }
                 }
             )
-            .subscribe();
+            .subscribe(status => {
+                if (activeTicketRef.current !== ticketId) return;
+                setConnectionStatus(status === 'SUBSCRIBED' ? 'Live' : 'Reconnecting');
+                if (status === 'SUBSCRIBED') fetchMessages();
+            });
+
+        // The SDK reconnects its WebSocket; durable reads recover missed events.
+        const recover = () => { if (document.visibilityState !== 'hidden') fetchMessages(); };
+        const recoveryTimer = setInterval(recover, 30000);
+        window.addEventListener('online', recover);
+        document.addEventListener('visibilitychange', recover);
 
         return () => {
+            activeTicketRef.current = null;
+            clearInterval(recoveryTimer);
+            clearTimeout(typingTimerRef.current);
+            window.removeEventListener('online', recover);
+            document.removeEventListener('visibilitychange', recover);
+            channelRef.current = null;
             supabase.removeChannel(channel);
         };
      
  
-    }, [ticketId]);
+    }, [ticketId, user?.id, profile?.role]);
 
     const handleInputChange = (e) => {
         setInputValue(e.target.value);
@@ -165,7 +195,9 @@ const TicketChat = ({ ticketId, currentUserRole = 'user' }) => {
     // ─── Send message ────────────────────────────────────────────────────
     const handleSend = async (e) => {
         e.preventDefault();
-        if (!inputValue.trim() || !user) return;
+        if (!inputValue.trim() || !user || sendingRef.current) return;
+        sendingRef.current = true;
+        setSendError('');
 
         const content = inputValue.trim();
         const currentIsInternal = isInternal;
@@ -188,16 +220,20 @@ const TicketChat = ({ ticketId, currentUserRole = 'user' }) => {
 
         try {
             if (currentIsInternal) {
-                const { error } = await supabase
+                const { data, error } = await supabase
                     .from('internal_notes')
                     .insert([{
                         ticket_id: ticketId,
                         agent_id: user.id,
                         content: content
-                    }]);
+                    }]).select().single();
                 if (error) throw error;
+                if (data && activeTicketRef.current === ticketId) {
+                    const saved = currentIsInternal ? { ...data, message: data.content, is_internal: true, sender_name: profile?.full_name || 'Agent', sender_role: 'admin' } : data;
+                    setMessages(previous => mergeChatMessages(previous.filter(message => message.id !== tempMessage.id), [saved]));
+                }
             } else {
-                const { error } = await supabase
+                const { data, error } = await supabase
                     .from('ticket_messages')
                     .insert([{
                         ticket_id: ticketId,
@@ -205,12 +241,20 @@ const TicketChat = ({ ticketId, currentUserRole = 'user' }) => {
                         sender_name: profile?.full_name || user.email,
                         sender_role: profile?.role || 'user',
                         message: content
-                    }]);
+                    }]).select().single();
                 if (error) throw error;
+                if (data && activeTicketRef.current === ticketId) {
+                    const saved = currentIsInternal ? { ...data, message: data.content, is_internal: true, sender_name: profile?.full_name || 'Agent', sender_role: 'admin' } : data;
+                    setMessages(previous => mergeChatMessages(previous.filter(message => message.id !== tempMessage.id), [saved]));
+                }
             }
         } catch (err) {
             console.error("Error sending message:", err);
             setMessages(prev => prev.filter(m => m.id !== tempMessage.id));
+            setInputValue(previous => previous || content);
+            setSendError('Message was not sent. Your draft has been restored; please retry.');
+        } finally {
+            sendingRef.current = false;
         }
     };
 
@@ -250,7 +294,7 @@ const TicketChat = ({ ticketId, currentUserRole = 'user' }) => {
             <div style={{ padding: '12px 20px', borderBottom: '1px solid #f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <h2 style={{ fontSize: '11px', color: '#9ca3af', letterSpacing: '0.1em', fontWeight: 600, textTransform: 'uppercase', margin: 0 }}>
-                        AI ASSISTANT
+                        SUPPORT CHAT
                     </h2>
                 </div>
 
@@ -274,6 +318,8 @@ const TicketChat = ({ ticketId, currentUserRole = 'user' }) => {
                 </div>
             </div>
 
+            <p role="status" aria-live="polite" style={{ padding: '0 20px', fontSize: '12px' }}>{connectionStatus}</p>
+            {sendError && <p role="alert" style={{ padding: '0 20px' }}>{sendError}</p>}
             {/* Messages */}
             <div
                 ref={scrollContainerRef}
