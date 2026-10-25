@@ -11,10 +11,68 @@ import asyncio
 import base64
 import io
 import logging
-
+import os
 from PIL import Image
 
 logger = logging.getLogger(__name__)
+
+# ── Path traversal prevention ─────────────────────────────────────────────────
+_NULL_BYTE = "\x00"
+
+def _sanitize_filename(filename: str) -> str:
+    """
+    Sanitize a user-supplied filename to prevent path traversal attacks.
+
+    - Strips NULL bytes
+    - Extracts basename only (removes any directory components)
+    - Rejects filenames containing '..' traversal sequences
+    - Rejects empty or whitespace-only filenames after sanitization
+
+    Raises:
+        ValueError if the filename is invalid or contains traversal sequences.
+    """
+    if not filename or not isinstance(filename, str):
+        raise ValueError("Filename must be a non-empty string.")
+
+    # Reject NULL bytes
+    if _NULL_BYTE in filename:
+        raise ValueError("Filename contains invalid NULL byte.")
+
+    # Reject explicit traversal sequences before basename extraction
+    if ".." in filename:
+        raise ValueError("Filename contains path traversal sequence '..'.")
+
+    # Reject leading slash (absolute path attempt)
+    if filename.startswith("/") or filename.startswith("\\"):
+        raise ValueError("Filename must not be an absolute path.")
+
+    # Extract basename only — strips any directory components
+    safe_name = os.path.basename(filename)
+
+    if not safe_name or not safe_name.strip():
+        raise ValueError("Filename is empty after sanitization.")
+
+    return safe_name
+
+
+def _verify_safe_path(base_dir: str, filename: str) -> str:
+    """
+    Resolve the full path and verify it stays inside base_dir.
+
+    Raises:
+        ValueError if the resolved path escapes base_dir.
+    """
+    safe_name = _sanitize_filename(filename)
+    resolved = os.path.realpath(os.path.join(base_dir, safe_name))
+    base_resolved = os.path.realpath(base_dir)
+
+    if os.path.commonpath([resolved, base_resolved]) != base_resolved:
+        raise ValueError(
+            f"Path traversal detected: '{filename}' resolves outside the upload directory."
+        )
+
+    return resolved
+
 
 # ── Size limits ──────────────────────────────────────────────────────────────
 MAX_BASE64_LENGTH = 10 * 1024 * 1024          # 10 MB base64 string (~7.5 MB binary)
@@ -319,6 +377,17 @@ class OCRService:
             ".tiff": "image/tiff",
             ".pdf": "application/pdf"
         }
+
+        # ── Sanitize filename to prevent path traversal ───────────────────────
+        if filename is not None:
+            try:
+                filename = _sanitize_filename(filename)
+            except ValueError as path_err:
+                return {
+                    "success": False,
+                    "text": "",
+                    "error": f"Invalid filename: {path_err}"
+                }
 
         resolved_content_type = content_type or prefix_content_type
         if not resolved_content_type and filename:
