@@ -3,7 +3,7 @@ import axios from 'axios';
 import { AlertTriangle, ArrowRight, History, Loader2, ShieldCheck, Sparkles, User } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { API_CONFIG } from '../../config';
-import { formatFullTimestamp, safeParseDateForSort } from '../../utils/dateUtils';
+import { formatFullTimestamp, formatRelativeTime, safeParseDateForSort } from '../../utils/dateUtils';
 
 const ACTION_META = {
     TICKET_CREATED: {
@@ -272,8 +272,8 @@ const TicketAuditTimeline = ({ ticketId, companyId }) => {
                                                 <p className="text-sm font-bold text-slate-800" title={record.performed_by || 'System generated'}>
                                                     {actorLabel}
                                                 </p>
-                                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                                                    {formatFullTimestamp(record.created_at)}
+                                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1" title={formatFullTimestamp(record.created_at)}>
+                                                    {formatRelativeTime(record.created_at)}
                                                 </p>
                                             </div>
                                         </div>

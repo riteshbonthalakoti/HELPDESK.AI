@@ -4,8 +4,7 @@ import {
     CheckCircle2, Clock, AlertCircle, User,
     Activity, ShieldCheck, Briefcase, Globe, BarChart3,
     ImageIcon, CornerUpLeft, CheckSquare, XCircle,
-    Cpu, Eye, MessageSquare, MoveRight, Loader2, Star, Eraser,
-    ExternalLink
+    Cpu, Eye, MessageSquare, MoveRight, Loader2, Star, Eraser
 } from 'lucide-react';
 import { supabase } from "../../lib/supabaseClient";
 import useAuthStore from "../../store/authStore";
@@ -15,7 +14,7 @@ import { Select } from "../../components/ui/select";
 import TicketChat from "../../components/shared/TicketChat";
 import { formatTicketId } from "../../utils/format";
 import SLABadge from "../components/SLABadge";
-import { formatFullTimestamp } from "../../utils/dateUtils";
+import { formatFullTimestamp, formatRelativeTime } from "../../utils/dateUtils";
 import TicketTimeline from "../../user/components/TicketTimeline";
 
 const AdminTicketDetail = () => {
@@ -303,7 +302,7 @@ const AdminTicketDetail = () => {
                             <h3 style={{ fontSize: '11px', letterSpacing: '0.12em', color: '#9ca3af', fontWeight: 700, textTransform: 'uppercase', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <MessageSquare size={14} color="#16a34a" /> USER INPUT PAYLOAD
                             </h3>
-                            <span style={{ fontSize: '10px', color: '#9ca3af', fontWeight: 600, textTransform: 'uppercase' }}>{formatFullTimestamp(ticket.created_at)}</span>
+                            <span style={{ fontSize: '10px', color: '#9ca3af', fontWeight: 600, textTransform: 'uppercase' }} title={formatFullTimestamp(ticket.created_at)}>{formatRelativeTime(ticket.created_at)}</span>
                         </div>
                         <div style={{ padding: '28px' }}>
                             <div style={{ background: 'linear-gradient(135deg, #0f1f12, #1a3320)', color: '#ffffff', borderRadius: '16px', padding: '24px 28px', fontSize: '15px', fontStyle: 'italic', lineHeight: 1.7 }}>
@@ -422,57 +421,6 @@ const AdminTicketDetail = () => {
                             </div>
                         </div>
                     </div>
- 
-                    {/* AI Suggestions (RAG) */}
-                    {ticket.metadata?.rag_suggestions && ticket.metadata.rag_suggestions.length > 0 && (
-                        <div style={{ background: '#ffffff', borderRadius: '20px', border: '1px solid #f0fdf4', boxShadow: '0 2px 16px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
-                            <div style={{ background: '#0f1f12', borderRadius: '20px 20px 0 0', color: '#ffffff', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                <h3 style={{ fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: '12px', margin: 0, display: 'flex', alignItems: 'center', gap: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                    <Cpu size={14} color="#22c55e" /> AI Suggestions (RAG)
-                                </h3>
-                            </div>
-                            <div style={{ padding: '20px' }} className="space-y-4">
-                                <div className="space-y-3">
-                                    {ticket.metadata.rag_suggestions.map((s, idx) => (
-                                        <div key={idx} className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100/60 space-y-2">
-                                            <div className="flex items-center justify-between">
-                                                <span style={{ fontSize: '9px', fontWeight: 800, textTransform: 'uppercase', padding: '2px 8px', borderRadius: '100px', background: s.source?.toLowerCase().includes('ticket') ? '#eff6ff' : '#fffbeb', color: s.source?.toLowerCase().includes('ticket') ? '#2563eb' : '#d97706', border: `1px solid ${s.source?.toLowerCase().includes('ticket') ? '#bfdbfe' : '#fde68a'}` }}>
-                                                    {s.source}
-                                                </span>
-                                                <span style={{ fontSize: '10px', fontWeight: 800, color: '#16a34a' }}>
-                                                    {Math.round(s.confidence * 100)}% Match
-                                                </span>
-                                            </div>
-                                            <p style={{ fontSize: '11px', fontWeight: 700, color: '#1e293b', margin: 0, lineHeight: 1.4 }}>
-                                                {s.url ? (
-                                                    <a href={s.url} target="_blank" rel="noopener noreferrer" className="hover:underline inline-flex items-center gap-1 text-emerald-700">
-                                                        {s.title} <ExternalLink size={10} />
-                                                    </a>
-                                                ) : s.title}
-                                            </p>
-                                            <div className="flex justify-between items-center text-[9px] text-slate-400 font-semibold uppercase tracking-wider">
-                                                <span>Similarity: {Math.round((s.similarity_score || s.similarity || 0) * 100)}%</span>
-                                                <span>Effectiveness: {s.resolution_effectiveness || '90%'}</span>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                {ticket.metadata.rag_recommendations && ticket.metadata.rag_recommendations.length > 0 && (
-                                    <div className="space-y-2.5 pt-3" style={{ borderTop: '1px solid #f0fdf4' }}>
-                                        <h4 style={{ fontSize: '10px', letterSpacing: '0.1em', color: '#9ca3af', fontWeight: 800, textTransform: 'uppercase', margin: 0 }}>Resolution Recommendations</h4>
-                                        <ul className="space-y-1.5 pl-4 list-disc text-slate-600 font-medium" style={{ margin: 0 }}>
-                                            {ticket.metadata.rag_recommendations.map((rec, idx) => (
-                                                <li key={idx} style={{ fontSize: '11px', lineHeight: 1.4 }}>
-                                                    {rec}
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    )}
 
                     {/* CSAT */}
                     {ticket.csat_rating && (
