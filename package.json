@@ -4,7 +4,7 @@
     "lint:md": "markdownlint '**/*.md'"
   },
   "dependencies": {
-    "puppeteer": "^25.2.1"
+    "puppeteer": "^25.16.0"
   },
   "devDependencies": {
     "markdownlint-cli": "^0.49.0",
