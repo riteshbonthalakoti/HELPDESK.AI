@@ -254,5 +254,78 @@ class TestRunSweep(unittest.TestCase):
         self.assertGreaterEqual(stats["breaches_found"], 1)
 
 
+
+
+class TestPriorityElevation(unittest.TestCase):
+    def setUp(self):
+        self.svc = SLAEscalationService()
+
+    def test_low_elevates_to_medium(self):
+        self.assertEqual(self.svc.elevate_priority("low"), "medium")
+
+    def test_medium_elevates_to_high(self):
+        self.assertEqual(self.svc.elevate_priority("medium"), "high")
+
+    def test_high_elevates_to_urgent(self):
+        self.assertEqual(self.svc.elevate_priority("high"), "urgent")
+
+    def test_urgent_remains_urgent(self):
+        self.assertEqual(self.svc.elevate_priority("urgent"), "urgent")
+
+    def test_fallback_or_none_elevates_to_urgent(self):
+        self.assertEqual(self.svc.elevate_priority(None), "medium")
+
+
+class TestBreachThresholds(unittest.TestCase):
+    def setUp(self):
+        self.svc = SLAEscalationService()
+
+    def test_risk_score_above_80_percent_triggers(self):
+        self.assertTrue(self.svc.is_breaching_soon(None, risk_score=0.85))
+        self.assertTrue(self.svc.is_breaching_soon(None, risk_score=0.80))
+        self.assertFalse(self.svc.is_breaching_soon(None, risk_score=0.79))
+
+    def test_time_under_60_minutes_triggers(self):
+        soon = (datetime.now(timezone.utc) + timedelta(minutes=45)).isoformat()
+        self.assertTrue(self.svc.is_breaching_soon(soon))
+
+    def test_time_over_60_minutes_does_not_trigger(self):
+        far = (datetime.now(timezone.utc) + timedelta(minutes=120)).isoformat()
+        self.assertFalse(self.svc.is_breaching_soon(far))
+
+    def test_invalid_or_missing_timestamp_handles_safely(self):
+        self.assertFalse(self.svc.is_breaching_soon("invalid-date"))
+        self.assertFalse(self.svc.is_breaching_soon(None))
+
+
+class TestAlertDeduplication(unittest.TestCase):
+    def setUp(self):
+        self.svc = SLAEscalationService()
+        self.svc.slack_webhook_url = "https://hooks.slack.com/services/dummy"
+
+    @patch("backend.services.sla_escalation_service._requests_lib.post")
+    def test_alert_deduplication_prevents_duplicate_spams(self, mock_post):
+        mock_resp = MagicMock()
+        mock_resp.raise_for_status.return_value = None
+        mock_post.return_value = mock_resp
+
+        ticket = {"id": "t-100", "priority": "high", "subject": "Alert test"}
+        # First alert dispatch
+        first_sent = self.svc.send_webhook_alert(ticket)
+        self.assertTrue(first_sent)
+        self.assertEqual(mock_post.call_count, 1)
+
+        # Duplicate alert for same ticket and priority
+        second_sent = self.svc.send_webhook_alert(ticket)
+        self.assertFalse(second_sent)
+        self.assertEqual(mock_post.call_count, 1)
+
+        # Subsequent alert with newly elevated priority is allowed
+        elevated_ticket = {"id": "t-100", "priority": "urgent", "subject": "Alert test"}
+        third_sent = self.svc.send_webhook_alert(elevated_ticket)
+        self.assertTrue(third_sent)
+        self.assertEqual(mock_post.call_count, 2)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -334,10 +334,33 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"[Startup] AutoCloseService background task not started: {e}")
 
+    # ── SLA Auto-Escalation Worker Loop ──────────────────────────────────
+    sla_escalation_task = None
+    try:
+        from backend.services.sla_escalation_service import SLAEscalationService
+
+        async def _run_sla_escalation_loop():
+            svc = SLAEscalationService()
+            while True:
+                try:
+                    if supabase:
+                        await asyncio.to_thread(svc.run_sweep, supabase)
+                except Exception as ex:
+                    print(f"[SLAEscalationService] Background loop warning: {ex}")
+                interval = int(os.environ.get("SLA_SWEEP_INTERVAL_SECONDS", "300"))
+                await asyncio.sleep(interval)
+
+        sla_escalation_task = asyncio.create_task(_run_sla_escalation_loop())
+        print("[Startup] SLAEscalationService: background escalation worker started.")
+    except Exception as e:
+        print(f"[Startup] SLAEscalationService background task not started: {e}")
+
     yield
 
     if auto_close_task:
         auto_close_task.cancel()
+    if sla_escalation_task:
+        sla_escalation_task.cancel()
     print("[Shutdown] Cleaning up ...")
 
 
@@ -1440,3 +1463,25 @@ async def auth_logout(response: Response):
 async def auth_me(user: dict = Depends(get_current_user)):
     return {"user": user}
 
+
+
+@app.post("/internal/sla/sweep")
+async def internal_sla_sweep(
+    company_id: Optional[str] = None,
+    send_alerts: bool = True
+):
+    """
+    On-demand management endpoint for triggering the SLA breach escalation sweep.
+    Allows manual triggers, health-checks, or external cron orchestrators.
+    """
+    from backend.services.sla_escalation_service import SLAEscalationService
+    svc = SLAEscalationService()
+    try:
+        stats = await asyncio.to_thread(svc.run_sweep, supabase, company_id=company_id, send_alerts=send_alerts)
+        return {
+            "success": True,
+            "stats": stats,
+            "message": f"SLA escalation sweep complete. {stats.get('escalated', 0)} tickets escalated."
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"SLA escalation sweep failed: {exc}")
