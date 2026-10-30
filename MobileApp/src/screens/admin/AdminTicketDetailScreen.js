@@ -198,7 +198,7 @@ const AdminTicketDetailScreen = () => {
         .eq('id', ticketId);
 
       if (error) {
-        Alert.alert("Sync Error", "Could not complete manual update.");
+        notifyError("Sync Error", "Could not complete manual update.");
       } else {
         // Refresh ticket details
         await fetchTicketDetails();
@@ -233,7 +233,7 @@ const AdminTicketDetailScreen = () => {
 
   const handleDivert = () => {
     if (!targetTeam && !targetAgent) {
-      Alert.alert("Error", "Please select a support team or agent to divert.");
+      notifyError("Error", "Please select a support team or agent to divert.");
       return;
     }
 
@@ -270,7 +270,7 @@ const AdminTicketDetailScreen = () => {
 
   const handleOverride = () => {
     if (!overrideCategory) {
-      Alert.alert("Error", "Please select a refined category.");
+      notifyError("Error", "Please select a refined category.");
       return;
     }
 
@@ -342,7 +342,7 @@ const AdminTicketDetailScreen = () => {
         });
 
       if (error) {
-        Alert.alert("Error", "Could not send message.");
+        notifyError("Error", "Could not send message.");
         setInputText(textToSend);
       }
     } catch (e) {

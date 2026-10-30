@@ -6,18 +6,20 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
 import { COLORS, SHADOWS } from '../../styles/theme';
-import { 
-  UserCheck, UserX, Users, Mail, Building2, ShieldAlert, 
-  Search, X, Eye, Trash2, Shield, Calendar, Hash, Loader2 
+import {
+  UserCheck, UserX, Users, Mail, Building2, ShieldAlert,
+  Search, X, Eye, Trash2, Shield, Calendar, Hash, Loader2
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
+import { useNotification } from '../../components/NotificationProvider';
 
+const { success, error: notifyError, warning, info } = useNotification();
 // ── Memoized list item — prevents re-render on every parent state change ──────
 const UserItem = React.memo(({ item, isPending, updatingUser, isUserAdmin, onApprove, onDecline, onProfileDetail }) => {
   return (
     <View style={styles.userCard}>
-      <TouchableOpacity 
-        style={styles.avatar} 
+      <TouchableOpacity
+        style={styles.avatar}
         onPress={() => onProfileDetail(item)}
         activeOpacity={0.7}
       >
@@ -44,14 +46,14 @@ const UserItem = React.memo(({ item, isPending, updatingUser, isUserAdmin, onApp
         <ActivityIndicator size="small" color={COLORS.primary} style={{ marginRight: 10 }} />
       ) : isPending ? (
         <View style={styles.actions}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.actionBtn, styles.approveBtn]}
             onPress={() => onApprove(item)}
             title="Approve"
           >
             <UserCheck size={18} color="#fff" />
           </TouchableOpacity>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.actionBtn, styles.declineBtn]}
             onPress={() => onDecline(item)}
             title="Decline"
@@ -61,7 +63,7 @@ const UserItem = React.memo(({ item, isPending, updatingUser, isUserAdmin, onApp
         </View>
       ) : (
         <View style={{ flexDirection: 'row', gap: 6 }}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.viewDetailsBtn}
             onPress={() => onProfileDetail(item)}
           >
@@ -125,10 +127,10 @@ const AdminUsersScreen = () => {
     // Subscribe to profile changes to update real-time
     const profilesChannel = supabase
       .channel('company_profiles_admin')
-      .on('postgres_changes', { 
-        event: '*', 
-        schema: 'public', 
-        table: 'profiles' 
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'profiles'
       }, () => fetchUsers())
       .subscribe();
 
@@ -150,14 +152,14 @@ const AdminUsersScreen = () => {
       // 1. Update Profile in public.profiles
       const { error } = await supabase
         .from('profiles')
-        .update({ 
+        .update({
           status: 'active',
           company_id: userItem.company_id || null
         })
         .eq('id', userItem.id);
 
       if (error) {
-        Alert.alert("Error", "Could not approve user registration.");
+        notifyError("Error", "Could not approve user registration.");
       } else {
         // 2. Insert system notification to let user know they're approved
         await supabase.from('notifications').insert({
@@ -179,7 +181,7 @@ const AdminUsersScreen = () => {
                 company: userItem.company
               }
             });
-          } catch (_) {}
+          } catch (_) { }
         })();
 
         fetchUsers();
@@ -193,36 +195,24 @@ const AdminUsersScreen = () => {
 
   const handleDecline = useCallback((userItem) => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    Alert.alert(
-      "Decline Registration",
-      `Are you sure you want to reject ${userItem.full_name}'s registration?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        { 
-          text: "Decline", 
-          style: "destructive",
-          onPress: async () => {
-            setUpdatingUser(userItem.id);
-            try {
-              const { error } = await supabase
-                .from('profiles')
-                .update({ status: 'rejected' })
-                .eq('id', userItem.id);
+    warning("Declining Registration", `Rejecting ${userItem.full_name}'s registration.`);
+    setUpdatingUser(userItem.id);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ status: 'rejected' })
+        .eq('id', userItem.id);
 
-              if (error) {
-                Alert.alert("Error", "Could not reject user.");
-              } else {
-                fetchUsers();
-              }
-            } catch (e) {
-              console.error(e);
-            } finally {
-              setUpdatingUser(null);
-            }
-          }
-        }
-      ]
-    );
+      if (error) {
+        notifyError("Error", "Could not reject user.");
+      } else {
+        fetchUsers();
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setUpdatingUser(null);
+    }
   }, [fetchUsers]);
 
   const handleUpdateRole = async (userItem, newRole) => {
@@ -235,7 +225,7 @@ const AdminUsersScreen = () => {
         .eq('id', userItem.id);
 
       if (error) {
-        Alert.alert("Error", "Could not update user security clearance.");
+        notifyError("Error", "Could not update user security clearance.");
       } else {
         if (selectedUser?.id === userItem.id) {
           setSelectedUser(prev => ({ ...prev, role: newRole }));
@@ -251,38 +241,26 @@ const AdminUsersScreen = () => {
 
   const handlePurgeUser = (userItem) => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    Alert.alert(
-      "Purge User Record",
-      `CRITICAL: You are about to permanently delete @${userItem.full_name}'s profile from the system active directory. This action is irreversible.`,
-      [
-        { text: "Abort", style: "cancel" },
-        {
-          text: "Confirm Purge",
-          style: "destructive",
-          onPress: async () => {
-            setUpdatingUser(userItem.id);
-            try {
-              const { error } = await supabase
-                .from('profiles')
-                .delete()
-                .eq('id', userItem.id);
+    warning("Purging User", `Permanently deleting @${userItem.full_name}'s profile.`);
+    setUpdatingUser(userItem.id);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .delete()
+        .eq('id', userItem.id);
 
-              if (error) {
-                Alert.alert("Error", "Could not delete user profile from DB.");
-              } else {
-                setShowDetailModal(false);
-                setSelectedUser(null);
-                fetchUsers();
-              }
-            } catch (e) {
-              console.error(e);
-            } finally {
-              setUpdatingUser(null);
-            }
-          }
-        }
-      ]
-    );
+      if (error) {
+        notifyError("Error", "Could not delete user profile from DB.");
+      } else {
+        setShowDetailModal(false);
+        setSelectedUser(null);
+        fetchUsers();
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setUpdatingUser(null);
+    }
   };
 
   const getFilteredUsers = useMemo(() => {
@@ -298,7 +276,7 @@ const AdminUsersScreen = () => {
     // Search Query Filter
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
-      filtered = filtered.filter(p => 
+      filtered = filtered.filter(p =>
         p.full_name?.toLowerCase().includes(q) ||
         p.email?.toLowerCase().includes(q) ||
         p.role?.toLowerCase().includes(q) ||
@@ -322,7 +300,7 @@ const AdminUsersScreen = () => {
   const renderUserItem = useCallback(({ item }) => {
     const isPending = item.status === 'pending_approval';
     const isUserAdmin = item.role === 'admin' || item.role === 'master_admin';
-    
+
     return (
       <UserItem
         item={item}
@@ -379,7 +357,7 @@ const AdminUsersScreen = () => {
             Pending Review ({profiles.filter(p => p.status === 'pending_approval').length})
           </Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity
           style={[styles.tabButton, activeTab === 'active' && styles.activeTabButton]}
           onPress={() => {
@@ -478,9 +456,9 @@ const AdminUsersScreen = () => {
                 </View>
 
                 <Text style={styles.sectionHeader}>SECURITY PROTOCOLS</Text>
-                
+
                 <View style={styles.rolesRow}>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={[styles.roleOptionCard, selectedUser.role === 'user' && styles.activeRoleCard]}
                     onPress={() => handleUpdateRole(selectedUser, 'user')}
                   >
@@ -488,7 +466,7 @@ const AdminUsersScreen = () => {
                     <Text style={[styles.roleOptionText, selectedUser.role === 'user' && styles.activeRoleText]}>Standard User</Text>
                   </TouchableOpacity>
 
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={[styles.roleOptionCard, selectedUser.role === 'admin' && styles.activeRoleCard]}
                     onPress={() => handleUpdateRole(selectedUser, 'admin')}
                   >
@@ -507,8 +485,8 @@ const AdminUsersScreen = () => {
 
                 {/* Direct Actions */}
                 <View style={styles.modalActions}>
-                  <TouchableOpacity 
-                    style={styles.purgeBtn} 
+                  <TouchableOpacity
+                    style={styles.purgeBtn}
                     onPress={() => handlePurgeUser(selectedUser)}
                     disabled={updatingUser === selectedUser.id}
                   >
@@ -529,7 +507,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   header: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 16 },
   title: { fontSize: 28, fontWeight: '900', color: COLORS.text, letterSpacing: -0.8 },
-  
+
   // Search
   searchSection: { paddingHorizontal: 20, marginBottom: 12 },
   searchBar: {
@@ -573,32 +551,32 @@ const styles = StyleSheet.create({
 
   // Cards List
   list: { paddingHorizontal: 20, paddingBottom: 120 },
-  userCard: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    backgroundColor: '#fff', 
-    borderRadius: 24, 
-    padding: 16, 
-    marginBottom: 12, 
-    borderWidth: 1, 
-    borderColor: 'rgba(0,0,0,0.03)', 
-    ...SHADOWS.soft 
-  },
-  avatar: { 
-    width: 46, 
-    height: 46, 
-    borderRadius: 14, 
-    backgroundColor: COLORS.primaryLight, 
-    justifyContent: 'center', 
+  userCard: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 14 
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.03)',
+    ...SHADOWS.soft
+  },
+  avatar: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: COLORS.primaryLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 14
   },
   avatarText: { fontSize: 16, fontWeight: '800', color: COLORS.primary },
   userInfo: { flex: 1, gap: 3 },
   userName: { fontSize: 15, fontWeight: '800', color: COLORS.text },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   metaText: { fontSize: 12, color: COLORS.textMuted, fontWeight: '600', maxWidth: '90%' },
-  
+
   // Actions
   actions: { flexDirection: 'row', gap: 8 },
   actionBtn: { width: 38, height: 38, borderRadius: 12, justifyContent: 'center', alignItems: 'center', ...SHADOWS.soft },
@@ -613,13 +591,13 @@ const styles = StyleSheet.create({
 
   // Sliding sheet modal styles
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
-  modalSheet: { 
-    backgroundColor: '#fff', 
-    borderTopLeftRadius: 32, 
-    borderTopRightRadius: 32, 
-    padding: 24, 
+  modalSheet: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    padding: 24,
     maxHeight: '85%',
-    ...SHADOWS.soft 
+    ...SHADOWS.soft
   },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
   modalAvatar: { width: 50, height: 50, borderRadius: 16, backgroundColor: COLORS.primaryLight, justifyContent: 'center', alignItems: 'center' },
@@ -630,7 +608,7 @@ const styles = StyleSheet.create({
 
   modalBody: { gap: 18 },
   sectionHeader: { fontSize: 10.5, fontWeight: '800', color: COLORS.textMuted, letterSpacing: 1.2 },
-  
+
   metaCard: { backgroundColor: '#f8faf9', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8, borderWidth: 1, borderColor: 'rgba(0,0,0,0.03)' },
   metaCardRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.04)' },
   metaLabel: { fontSize: 9.5, fontWeight: '800', color: COLORS.textMuted, letterSpacing: 0.5 },
@@ -644,15 +622,15 @@ const styles = StyleSheet.create({
   activeRoleText: { color: COLORS.text, fontWeight: '900' },
 
   modalActions: { marginTop: 8 },
-  purgeBtn: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    gap: 8, 
-    backgroundColor: '#ef4444', 
-    height: 52, 
-    borderRadius: 18, 
-    ...SHADOWS.soft 
+  purgeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#ef4444',
+    height: 52,
+    borderRadius: 18,
+    ...SHADOWS.soft
   },
   purgeBtnText: { fontSize: 13, fontWeight: '800', color: '#fff', textTransform: 'uppercase', letterSpacing: 0.5 }
 });
