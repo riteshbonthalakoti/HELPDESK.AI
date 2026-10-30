@@ -1,63 +1,145 @@
-/* eslint-disable no-unused-vars */
 /* global Cypress, cy */
+
+// ─── Database & Session Isolation Commands ───────────────────────────────────
+
+/**
+ * Reset the stateful local Supabase emulator and clear all browser state.
+ */
+Cypress.Commands.add('resetDatabase', () => {
+  cy.task('db:reset');
+  cy.clearCookies();
+  cy.clearLocalStorage();
+  cy.window({ log: false }).then((win) => {
+    win.localStorage.clear();
+    win.sessionStorage.clear();
+  });
+});
+
+/**
+ * Seed custom accounts or table rows into the local Supabase emulator.
+ */
+Cypress.Commands.add('seedDatabase', (payload = {}) => {
+  return cy.task('db:seed', payload);
+});
+
+/**
+ * Cleanly sign out the current browser session without resetting server DB state
+ * (used when switching between Employee, Support Agent, and Admin actors).
+ */
+Cypress.Commands.add('switchActorSession', () => {
+  cy.clearCookies();
+  cy.clearLocalStorage();
+  cy.window({ log: false }).then((win) => {
+    win.localStorage.clear();
+    win.sessionStorage.clear();
+  });
+});
 
 // ─── Auth Commands ───────────────────────────────────────────────────────────
 
 /**
- * Login via the UI with email and password.
+ * Login via the real UI form with email and password.
  */
 Cypress.Commands.add('login', (email, password) => {
   cy.visit('/login');
-  cy.get('input[type="email"]').type(email);
-  cy.get('input[type="password"]').type(password);
+  cy.get('input[type="email"]').clear().type(email);
+  cy.get('input[type="password"]').clear().type(password);
   cy.get('button[type="submit"]').click();
   cy.url().should('not.include', '/login');
 });
 
 /**
+ * Build a deterministic JWT-formatted token string so @supabase/supabase-js
+ * parses token expiry cleanly without throwing JWT decode warnings.
+ */
+function buildStubJwt(sub, email, expiresAtSec) {
+  const encode = (obj) =>
+    btoa(JSON.stringify(obj))
+      .replace(/=/g, '')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_');
+  const header = encode({ alg: 'HS256', typ: 'JWT' });
+  const payload = encode({
+    aud: 'authenticated',
+    exp: expiresAtSec,
+    sub,
+    email,
+    role: 'authenticated',
+  });
+  return `${header}.${payload}.stubsignature`;
+}
+
+/**
  * Login as admin using fixture credentials.
- * Stubs the Supabase auth response for deterministic testing.
+ * Works seamlessly for both stubbed specs and local emulator specs.
  */
 Cypress.Commands.add('loginAsAdmin', () => {
   cy.fixture('admin').then((admin) => {
-    // Set auth tokens in localStorage to simulate logged-in state
-    cy.window().then((win) => {
-      win.localStorage.setItem(
-        'sb-localhost-auth-token',
-        JSON.stringify({
-          access_token: 'fake-access-token',
-          refresh_token: 'fake-refresh-token',
-          expires_at: Date.now() + 3600000,
-          user: {
-            id: 'test-admin-uid',
-            email: admin.email,
-            user_metadata: { full_name: admin.fullName, role: 'admin' },
-          },
-        })
-      );
+    const expiresAtSec = Math.floor(Date.now() / 1000) + 3600;
+    const accessToken = buildStubJwt('test-admin-uid', admin.email, expiresAtSec);
+    const adminUser = {
+      id: 'test-admin-uid',
+      aud: 'authenticated',
+      role: 'authenticated',
+      email: admin.email,
+      user_metadata: {
+        full_name: admin.fullName,
+        role: 'admin',
+        company: admin.company || 'TestCorp',
+        company_id: 'test-company-id',
+      },
+      app_metadata: { provider: 'email', providers: ['email'] },
+    };
+    const adminProfile = {
+      id: 'test-admin-uid',
+      email: admin.email,
+      full_name: admin.fullName,
+      role: 'admin',
+      status: 'active',
+      company_id: 'test-company-id',
+      company: admin.company || 'TestCorp',
+    };
+    const sessionJson = JSON.stringify({
+      access_token: accessToken,
+      refresh_token: 'fake-refresh-token',
+      token_type: 'bearer',
+      expires_in: 3600,
+      expires_at: expiresAtSec,
+      user: adminUser,
+    });
+    const zustandAuthJson = JSON.stringify({
+      state: { profile: adminProfile },
+      version: 0,
     });
 
-    // Intercept Supabase auth calls to return mock session
+    const injectAuthStorage = (win) => {
+      win.localStorage.setItem('sb-localhost-auth-token', sessionJson);
+      win.localStorage.setItem('sb-127-auth-token', sessionJson);
+      win.localStorage.setItem('auth-storage', zustandAuthJson);
+    };
+
+    cy.window({ log: false }).then(injectAuthStorage);
+    cy.on('window:before:load', injectAuthStorage);
+
     cy.intercept('GET', '**/auth/v1/user**', {
       statusCode: 200,
-      body: {
-        id: 'test-admin-uid',
-        email: admin.email,
-        user_metadata: { full_name: admin.fullName, role: 'admin' },
-      },
+      body: adminUser,
     }).as('getAuthUser');
 
     cy.intercept('POST', '**/auth/v1/token**', {
       statusCode: 200,
-      body: {
-        access_token: 'fake-access-token',
-        refresh_token: 'fake-refresh-token',
-        user: {
-          id: 'test-admin-uid',
-          email: admin.email,
-        },
-      },
+      body: JSON.parse(sessionJson),
     }).as('postAuthToken');
+
+    cy.intercept('GET', '**/rest/v1/profiles**', (req) => {
+      const wantsObject = String(req.headers.accept || '').includes(
+        'application/vnd.pgrst.object+json'
+      );
+      req.reply({
+        statusCode: 200,
+        body: wantsObject ? adminProfile : [adminProfile],
+      });
+    }).as('getAdminProfileDefault');
   });
 });
 
@@ -82,14 +164,17 @@ Cypress.Commands.add('stubSettingsApi', (overrides = {}) => {
     ...overrides,
   };
 
-  // Intercept Supabase REST calls for system_settings
-  cy.intercept('GET', '**/rest/v1/system_settings**', {
-    statusCode: 200,
-    body: [defaultSettings],
-    headers: { 'content-range': '0-0/1' },
+  cy.intercept('GET', '**/rest/v1/system_settings**', (req) => {
+    const wantsObject = String(req.headers.accept || '').includes(
+      'application/vnd.pgrst.object+json'
+    );
+    req.reply({
+      statusCode: 200,
+      body: wantsObject ? defaultSettings : [defaultSettings],
+      headers: { 'content-range': '0-0/1' },
+    });
   }).as('getSettings');
 
-  // Intercept upsert/save calls
   cy.intercept('PATCH', '**/rest/v1/system_settings**', {
     statusCode: 200,
     body: [{ ...defaultSettings }],
@@ -103,124 +188,87 @@ Cypress.Commands.add('stubSettingsApi', (overrides = {}) => {
 
 // ─── Navigation Commands ─────────────────────────────────────────────────────
 
-/**
- * Navigate to admin settings page with auth stubs.
- */
 Cypress.Commands.add('goToAdminSettings', () => {
   cy.visit('/admin/settings');
 });
 
-/**
- * Navigate to admin tickets page.
- */
 Cypress.Commands.add('goToAdminTickets', () => {
   cy.visit('/admin/tickets');
 });
 
-/**
- * Navigate to admin dashboard.
- */
 Cypress.Commands.add('goToAdminDashboard', () => {
   cy.visit('/admin/dashboard');
 });
 
 // ─── WebSocket / Realtime Commands ───────────────────────────────────────────
 
-/**
- * Emit a simulated Supabase realtime ticket update event.
- * Dispatches a CustomEvent that the app's realtime listener can capture.
- * @param {string} ticketId - The ticket ID to update
- * @param {string} newStatus - The new status value
- */
 Cypress.Commands.add('emitRealtimeTicketUpdate', (ticketId, newStatus) => {
   cy.window().then((win) => {
     const payload = {
       eventType: 'UPDATE',
       new: {
+        id: ticketId,
         ticket_id: ticketId,
         status: newStatus,
         updated_at: new Date().toISOString(),
       },
-      old: { ticket_id: ticketId },
+      old: { id: ticketId, ticket_id: ticketId },
     };
 
-    // Dispatch as a custom event for Supabase realtime channel simulation
     win.dispatchEvent(
       new CustomEvent('supabase-realtime-ticket', { detail: payload })
     );
 
-    // Also try dispatching via a global handler if the app uses one
     if (win.__supabaseRealtimeHandler) {
       win.__supabaseRealtimeHandler(payload);
     }
   });
 });
 
-// ─── Storage Commands ────────────────────────────────────────────────────────
-
-/**
- * Clear all localStorage.
- */
-Cypress.Commands.add('clearAllLocalStorage', () => {
-  cy.window().then((win) => {
-    win.localStorage.clear();
-  });
-});
-
-/**
- * Clear all sessionStorage.
- */
-Cypress.Commands.add('clearAllSessionStorage', () => {
-  cy.window().then((win) => {
-    win.sessionStorage.clear();
-  });
-});
-
-/**
- * Clear all cookies.
- */
-Cypress.Commands.add('clearAllCookies', () => {
-  cy.clearCookies();
-});
-
 // ─── Utility Commands ────────────────────────────────────────────────────────
 
-/**
- * Wait for page to be fully loaded (no pending network requests).
- */
 Cypress.Commands.add('waitForPageLoad', () => {
   cy.get('body').should('be.visible');
-  // Wait a tick for any pending async operations
-  cy.wait(500);
+  cy.wait(300);
 });
 
 /**
- * Intercept and stub common backend API endpoints.
+ * Intercept and stub common backend API endpoints with PostgREST single-object awareness.
  */
 Cypress.Commands.add('stubBackendApis', () => {
-  // Tickets list
   cy.intercept('GET', '**/rest/v1/tickets**', {
     statusCode: 200,
     body: [],
-    headers: { 'content-range': '0-0/0' },
+    headers: { 'content-range': '*/0' },
   }).as('getTicketsList');
 
-  // Company/profile
-  cy.intercept('GET', '**/rest/v1/companies**', {
-    statusCode: 200,
-    body: [{ id: 'test-company-id', name: 'TestCorp' }],
+  cy.intercept('GET', '**/rest/v1/companies**', (req) => {
+    const company = { id: 'test-company-id', name: 'TestCorp', status: 'active' };
+    const wantsObject = String(req.headers.accept || '').includes(
+      'application/vnd.pgrst.object+json'
+    );
+    req.reply({
+      statusCode: 200,
+      body: wantsObject ? company : [company],
+    });
   }).as('getCompany');
 
-  // User profile
-  cy.intercept('GET', '**/rest/v1/profiles**', {
-    statusCode: 200,
-    body: [
-      {
-        id: 'test-admin-uid',
-        email: 'admin@helpdesk.ai',
-        role: 'admin',
-        company_id: 'test-company-id',
-      },
-    ],
+  cy.intercept('GET', '**/rest/v1/profiles**', (req) => {
+    const profile = {
+      id: 'test-admin-uid',
+      email: 'admin@helpdesk.ai',
+      full_name: 'Test Admin',
+      role: 'admin',
+      status: 'active',
+      company_id: 'test-company-id',
+      company: 'TestCorp',
+    };
+    const wantsObject = String(req.headers.accept || '').includes(
+      'application/vnd.pgrst.object+json'
+    );
+    req.reply({
+      statusCode: 200,
+      body: wantsObject ? profile : [profile],
+    });
   }).as('getProfile');
 });

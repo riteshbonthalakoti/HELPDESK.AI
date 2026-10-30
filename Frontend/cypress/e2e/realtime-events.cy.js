@@ -1,32 +1,34 @@
-/* eslint-disable no-unused-vars */
-/* global describe, beforeEach, cy, it, expect, Cypress */
+/* global cy */
 /**
  * E2E Test Suite — WebSocket Realtime Event Handling
- *
- * Covers:
- * - Simulated Supabase realtime ticket updates
- * - Status transition rendering
- * - Multiple rapid event handling
- * - Realtime event with page navigation
- * - Event payload validation
  *
  * Fixes #1167: Full E2E Cypress Test Suite
  */
 
 const REALTIME_TICKETS = [
   {
+    id: 'rt-ticket-001',
     ticket_id: 'rt-ticket-001',
     subject: 'Database connection pool exhausted',
+    summary: 'Database connection pool exhausted',
+    category: 'Software',
     status: 'open',
     priority: 'critical',
+    confidence: 0.94,
+    company: 'TestCorp',
     created_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
     updated_at: new Date().toISOString(),
   },
   {
+    id: 'rt-ticket-002',
     ticket_id: 'rt-ticket-002',
     subject: 'SSL certificate expiring in 3 days',
+    summary: 'SSL certificate expiring in 3 days',
+    category: 'Network',
     status: 'open',
     priority: 'high',
+    confidence: 0.89,
+    company: 'TestCorp',
     created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
     updated_at: new Date().toISOString(),
   },
@@ -59,7 +61,6 @@ describe('WebSocket Realtime Event Handling', () => {
     cy.visit('/admin/tickets');
     cy.wait('@getTickets');
 
-    // Fire 5 rapid events
     cy.emitRealtimeTicketUpdate('rt-ticket-001', 'resolved');
     cy.emitRealtimeTicketUpdate('rt-ticket-002', 'closed');
     cy.emitRealtimeTicketUpdate('rt-ticket-001', 'reopened');
@@ -71,9 +72,8 @@ describe('WebSocket Realtime Event Handling', () => {
 
   it('realtime event does not crash the app when on settings page', () => {
     cy.goToAdminSettings();
-    cy.wait('@getSettings');
+    cy.contains(/AI Settings/i).should('be.visible');
 
-    // Fire realtime event while on settings page
     cy.emitRealtimeTicketUpdate('rt-ticket-001', 'resolved');
 
     cy.get('body').should('be.visible');
@@ -92,7 +92,6 @@ describe('WebSocket Realtime Event Handling', () => {
     cy.visit('/admin/tickets');
     cy.wait('@getTickets');
 
-    // Navigate and fire event simultaneously
     cy.emitRealtimeTicketUpdate('rt-ticket-001', 'resolved');
     cy.goToAdminSettings();
 
@@ -104,7 +103,6 @@ describe('WebSocket Realtime Event Handling', () => {
     cy.wait('@getTickets');
 
     const statuses = ['open', 'in_progress', 'resolved', 'closed', 'reopened'];
-
     statuses.forEach((status) => {
       cy.emitRealtimeTicketUpdate('rt-ticket-001', status);
     });

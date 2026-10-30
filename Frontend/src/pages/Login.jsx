@@ -22,11 +22,11 @@ function Login() {
     if (user && profile) {
       if (profile.status === "active") {
         if (profile.role === "master_admin") navigate("/master-admin/dashboard");
-        else if (profile.role === "admin") navigate("/admin/dashboard");
-        else if (profile.role === "user") navigate("/dashboard");
+        else if (profile.role === "admin" || profile.role === "super_admin") navigate("/admin/dashboard");
+        else if (profile.role === "user" || profile.role === "agent") navigate("/dashboard");
       } else if (profile.status === "pending_approval") {
-        if (profile.role === "admin") navigate("/admin-lobby");
-        else if (profile.role === "user") navigate("/user-lobby");
+        if (profile.role === "admin" || profile.role === "super_admin") navigate("/admin-lobby");
+        else if (profile.role === "user" || profile.role === "agent") navigate("/user-lobby");
       } else if (profile.status === "rejected") {
         navigate("/not-approved");
       }
@@ -60,10 +60,10 @@ function Login() {
 
       if (profile.role === "master_admin" && profile.status === "active") {
         navigate("/master-admin/dashboard");
-      } else if (profile.role === "admin") {
+      } else if (profile.role === "admin" || profile.role === "super_admin") {
         if (profile.status === "active") navigate("/admin/dashboard");
         else if (profile.status === "pending_approval") navigate("/admin-lobby");
-      } else if (profile.role === "user") {
+      } else if (profile.role === "user" || profile.role === "agent") {
         if (profile.status === "active") navigate("/dashboard");
         else if (profile.status === "pending_approval") navigate("/user-lobby");
       }
@@ -252,7 +252,7 @@ function Login() {
                 </label>
                 <input
                   type="email"
-                  placeholder="Enter your system email"
+                  name="email" placeholder="Enter your system email"
                   style={{
                     width: '100%',
                     background: '#f9fafb',
@@ -293,7 +293,7 @@ function Login() {
                   <div className="relative">
                     <input
                       type={showPassword ? "text" : "password"}
-                      placeholder="Enter your password"
+                      name="password" placeholder="Enter your password"
                       style={{
                         width: '100%',
                         background: '#f9fafb',

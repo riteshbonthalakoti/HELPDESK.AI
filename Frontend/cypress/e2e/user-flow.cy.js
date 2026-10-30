@@ -1,5 +1,4 @@
-/* eslint-disable no-unused-vars */
-/* global describe, beforeEach, cy, it, expect, Cypress */
+/* global cy */
 /**
  * E2E Test Suite — User Login and Ticket Creation Flow
  *
@@ -15,169 +14,143 @@
 
 describe('User Authentication and Ticket Creation', () => {
   const mockUser = {
+    id: 'test-user-uid',
     email: 'user@helpdesk.ai',
     password: 'Password123!',
     fullName: 'Test User',
   };
 
+  const userProfile = {
+    id: mockUser.id,
+    email: mockUser.email,
+    role: 'user',
+    status: 'active',
+    company_id: 'test-company-id',
+    company: 'TestCorp',
+    full_name: mockUser.fullName,
+  };
+
   beforeEach(() => {
-    // Start with a clean state
     cy.clearAllLocalStorage();
     cy.clearAllSessionStorage();
     cy.clearAllCookies();
-    
-    // Stub standard backend APIs (tickets, profile, company)
     cy.stubBackendApis();
   });
 
   it('should successfully authenticate the user and redirect to dashboard', () => {
-    // Intercept Supabase auth login endpoint
+    const expiresAtSec = Math.floor(Date.now() / 1000) + 3600;
+
     cy.intercept('POST', '**/auth/v1/token?grant_type=password', {
       statusCode: 200,
       body: {
-        access_token: 'fake-jwt-token',
+        access_token: [
+          btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' })),
+          btoa(JSON.stringify({ sub: mockUser.id, exp: expiresAtSec })),
+          'mock-sig',
+        ]
+          .join('.')
+          .replace(/=/g, ''),
         refresh_token: 'fake-refresh-token',
+        token_type: 'bearer',
+        expires_in: 3600,
+        expires_at: expiresAtSec,
         user: {
-          id: 'test-user-uid',
+          id: mockUser.id,
           email: mockUser.email,
           user_metadata: { full_name: mockUser.fullName, role: 'user' },
         },
       },
     }).as('loginRequest');
 
-    // Override the getProfile stub from stubBackendApis to return a user profile
-    cy.intercept('GET', '**/rest/v1/profiles**', {
-      statusCode: 200,
-      body: [
-        {
-          id: 'test-user-uid',
-          email: mockUser.email,
-          role: 'user',
-          company_id: 'test-company-id',
-          full_name: mockUser.fullName
-        },
-      ],
+    cy.intercept('GET', '**/rest/v1/profiles**', (req) => {
+      const wantsObject = String(req.headers.accept || '').includes(
+        'application/vnd.pgrst.object+json'
+      );
+      req.reply({
+        statusCode: 200,
+        body: wantsObject ? userProfile : [userProfile],
+      });
     }).as('getUserProfile');
 
     cy.visit('/login');
 
-    // Fill in the login form using generic selectors available in the DOM
-    cy.get('input[type="email"], input[name="email"], [placeholder*="Email" i]').first().type(mockUser.email);
-    cy.get('input[type="password"], input[name="password"], [placeholder*="Password" i]').first().type(mockUser.password);
+    cy.get('input[type="email"], input[name="email"]').first().type(mockUser.email);
+    cy.get('input[type="password"], input[name="password"]').first().type(mockUser.password);
+    cy.get('button[type="submit"]').first().click();
 
-    // Submit the form
-    cy.get('button[type="submit"], button:contains("Sign In"), button:contains("Log In")').first().click();
-
-    // Verify API call was made
     cy.wait('@loginRequest');
 
-    // Verify redirection to the dashboard
     cy.url().should('include', '/dashboard');
-    cy.get('body').should('contain', mockUser.fullName).or('contain', 'Welcome');
+    cy.contains(new RegExp(`${mockUser.fullName}|Welcome`, 'i'), { timeout: 12000 }).should(
+      'be.visible'
+    );
   });
 
   it('should navigate to ticket creation, fill the form and submit a new ticket', () => {
-    // Pre-authenticate the user using customized cy.login logic or localStorage
-    cy.window().then((win) => {
-      win.localStorage.setItem(
-        'sb-localhost-auth-token',
-        JSON.stringify({
-          access_token: 'fake-jwt-token',
-          refresh_token: 'fake-refresh-token',
-          expires_at: Date.now() + 3600000,
-          user: {
-            id: 'test-user-uid',
-            email: mockUser.email,
-            user_metadata: { full_name: mockUser.fullName, role: 'user' },
-          },
-        })
-      );
+    const expiresAtSec = Math.floor(Date.now() / 1000) + 3600;
+    const sessionJson = JSON.stringify({
+      access_token: [
+        btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' })),
+        btoa(JSON.stringify({ sub: mockUser.id, exp: expiresAtSec })),
+        'mock-sig',
+      ]
+        .join('.')
+        .replace(/=/g, ''),
+      refresh_token: 'fake-refresh-token',
+      token_type: 'bearer',
+      expires_in: 3600,
+      expires_at: expiresAtSec,
+      user: {
+        id: mockUser.id,
+        email: mockUser.email,
+        user_metadata: { full_name: mockUser.fullName, role: 'user' },
+      },
+    });
+    const zustandAuthJson = JSON.stringify({
+      state: { profile: userProfile },
+      version: 0,
+    });
+
+    cy.on('window:before:load', (win) => {
+      win.localStorage.setItem('sb-localhost-auth-token', sessionJson);
+      win.localStorage.setItem('sb-127-auth-token', sessionJson);
+      win.localStorage.setItem('auth-storage', zustandAuthJson);
     });
 
     cy.intercept('GET', '**/auth/v1/user**', {
       statusCode: 200,
       body: {
-        id: 'test-user-uid',
+        id: mockUser.id,
         email: mockUser.email,
         user_metadata: { full_name: mockUser.fullName, role: 'user' },
       },
     }).as('getAuthUser');
 
-    // Override profile for standard user
-    cy.intercept('GET', '**/rest/v1/profiles**', {
-      statusCode: 200,
-      body: [
-        {
-          id: 'test-user-uid',
-          email: mockUser.email,
-          role: 'user',
-          company_id: 'test-company-id',
-          full_name: mockUser.fullName
-        },
-      ],
+    cy.intercept('GET', '**/rest/v1/profiles**', (req) => {
+      const wantsObject = String(req.headers.accept || '').includes(
+        'application/vnd.pgrst.object+json'
+      );
+      req.reply({
+        statusCode: 200,
+        body: wantsObject ? userProfile : [userProfile],
+      });
     }).as('getUserProfile');
 
-    // Intercept ticket creation POST request
-    cy.intercept('POST', '**/rest/v1/tickets**', {
-      statusCode: 201,
-      body: [{ id: 'ticket-123', status: 'open' }],
-    }).as('createTicket');
-    
-    // Visit Dashboard first to ensure proper initialization
     cy.visit('/dashboard');
     cy.waitForPageLoad();
 
-    // Navigate to ticket creation
-    // We try to find a link to the ticket creation page or direct visit
-    cy.get('body').then($body => {
-      if ($body.find('a[href*="/tickets/new"], button:contains("Create Ticket"), button:contains("New Ticket")').length > 0) {
-        cy.get('a[href*="/tickets/new"], button:contains("Create Ticket"), button:contains("New Ticket")').first().click({ force: true });
-      } else {
-        // Fallback: visit the route directly if UI navigation is complex
-        cy.visit('/tickets/new');
-      }
-    });
-
-    cy.get('body').should('be.visible');
-
-    // Wait for form to render
-    cy.wait(500);
-
-    // Fill Subject/Title
-    cy.get('input[placeholder*="summary" i], input[name="title"], input[name="subject"], input[placeholder*="Subject" i]')
+    cy.visit('/create-ticket');
+    cy.get('textarea[placeholder*="Describe your problem" i]')
       .first()
       .should('be.visible')
-      .type('E2E Test: Cannot access email portal');
+      .type(
+        'I have been trying to log into the email portal but it keeps giving me a 500 internal server error.'
+      );
 
-    // Fill Description/Error Message
-    cy.get('textarea[placeholder*="problem" i], textarea[placeholder*="error" i], textarea[name="description"]')
-      .first()
-      .should('be.visible')
-      .type('I have been trying to log into the email portal but it keeps giving me a 500 internal server error.');
+    cy.contains('button[type="submit"]', 'Submit Ticket').scrollIntoView().click();
 
-    // Attempt to fill Priority if it exists as a standard select
-    cy.get('body').then($body => {
-      if ($body.find('select[name="priority"], select[aria-label*="priority" i]').length > 0) {
-        cy.get('select[name="priority"], select[aria-label*="priority" i]').first().select('high', { force: true });
-      }
-    });
-
-    // Trigger submit action
-    cy.get('button[type="submit"], button:contains("Submit Ticket"), button:contains("Create")')
-      .first()
-      .click();
-
-    // In CreateTicket test, it navigates to /ai-processing or /tickets
-    // Assert navigation or success indicator
-    cy.url().should('satisfy', (url) => url.includes('/ai-processing') || url.includes('/tickets'));
-    
-    // Check for success toast or similar (if any)
-    cy.get('body').then($body => {
-      const text = $body.text();
-      // Only fail if we are stuck on the creation form without a toast
-      if (text.includes('Cannot access email portal')) {
-         cy.log('Ticket appears successfully created based on body text.');
-      }
-    });
+    cy.url({ timeout: 15000 }).should('satisfy', (url) =>
+      url.includes('/ai-processing') || url.includes('/ai-understanding')
+    );
   });
 });

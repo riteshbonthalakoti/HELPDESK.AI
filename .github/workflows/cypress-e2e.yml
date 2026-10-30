@@ -1,0 +1,98 @@
+name: Cypress E2E Tests
+
+on:
+  push:
+    branches:
+      - main
+      - gssoc
+      - "fix/**"
+      - "feat/**"
+      - "test/**"
+      - "perf/**"
+      - "security/**"
+      - "devops/**"
+  pull_request:
+    branches:
+      - main
+      - gssoc
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cypress-e2e-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cypress-e2e:
+    name: Cypress Full-Stack E2E Suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      ALLOW_DEGRADED_STARTUP: "1"
+      E2E_SUPABASE_URL: "http://127.0.0.1:54321"
+      E2E_SUPABASE_ANON_KEY: "e2e-header.e2e-payload.e2e-signature"
+      E2E_BACKEND_URL: "http://127.0.0.1:8000"
+      E2E_FRONTEND_URL: "http://localhost:5173"
+      PYTHONPATH: ${{ github.workspace }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install headless browser system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            xvfb libgbm-dev libnotify-dev libnss3 libxss1 libxtst6 xauth
+          sudo apt-get install -y --no-install-recommends libgtk-3-0t64 || sudo apt-get install -y --no-install-recommends libgtk-3-0
+          sudo apt-get install -y --no-install-recommends libasound2t64 || sudo apt-get install -y --no-install-recommends libasound2
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: "scripts/requirements-e2e.txt"
+
+      - name: Install backend Python dependencies
+        run: |
+          python -m pip install --only-binary :all: --require-hashes -r scripts/requirements-e2e.txt
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: Frontend/package-lock.json
+
+      - name: Cache Cypress binary
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/Cypress
+          key: cypress-${{ runner.os }}-${{ hashFiles('Frontend/package-lock.json') }}
+
+      - name: Install Frontend & Cypress dependencies
+        working-directory: Frontend
+        run: |
+          npm ci --ignore-scripts
+          node ./node_modules/cypress/bin/cypress install
+          node ./node_modules/cypress/bin/cypress verify
+
+      - name: Execute full-stack Cypress E2E suite
+        env:
+          PYTHON_BIN: python
+        run: |
+          xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
+            node scripts/run_e2e_ci.mjs
+
+      - name: Upload Cypress screenshots and videos on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cypress-e2e-artifacts
+          path: |
+            Frontend/cypress/screenshots
+            Frontend/cypress/videos
+          if-no-files-found: ignore

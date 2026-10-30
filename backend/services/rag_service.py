@@ -1,4 +1,5 @@
-from backend.logger import logger
+from backend.logger import get_logger
+logger = get_logger(__name__)
 import os
 import json
 import re

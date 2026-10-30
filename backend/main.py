@@ -655,6 +655,67 @@ async def analyze_bug(request: BugReportAnalysisRequest):
 
 
 # ---------------------------------------------------------------------------
+# Clean cookie-based Supabase Auth endpoints for /auth/me backward-compatibility
+# ---------------------------------------------------------------------------
+ACCESS_COOKIE = "access_token"
+REFRESH_COOKIE = "refresh_token"
+ACCESS_MAX_AGE = 60 * 60
+REFRESH_MAX_AGE = 60 * 60 * 24 * 7
+
+
+def _cookie_kwargs() -> dict:
+    secure = os.getenv("ENV", "production").lower() != "development"
+    return {"httponly": True, "secure": secure, "samesite": "strict", "path": "/"}
+
+
+def extract_token(request: Request) -> str | None:
+    cookie_token = request.cookies.get(ACCESS_COOKIE)
+    if cookie_token:
+        return cookie_token
+    auth = request.headers.get("authorization") or request.headers.get("Authorization")
+    if auth and auth.lower().startswith("bearer "):
+        return auth.split(" ", 1)[1].strip() or None
+    return None
+
+
+def _set_session_cookies(response: Response, session) -> None:
+    if not session or not getattr(session, "access_token", None):
+        return
+    response.set_cookie(ACCESS_COOKIE, session.access_token, max_age=ACCESS_MAX_AGE, **_cookie_kwargs())
+    refresh = getattr(session, "refresh_token", None)
+    if refresh:
+        response.set_cookie(REFRESH_COOKIE, refresh, max_age=REFRESH_MAX_AGE, **_cookie_kwargs())
+
+
+def _clear_session_cookies(response: Response) -> None:
+    kwargs = _cookie_kwargs()
+    response.delete_cookie(ACCESS_COOKIE, path=kwargs["path"])
+    response.delete_cookie(REFRESH_COOKIE, path=kwargs["path"])
+
+
+async def get_current_user(request: Request) -> dict:
+    token = extract_token(request)
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Database connection offline")
+    try:
+        result = supabase.auth.get_user(token)
+    except Exception as exc:
+        raise HTTPException(status_code=401, detail=f"Invalid session: {exc}") from exc
+
+    user = getattr(result, "user", None) or (result.get("user") if isinstance(result, dict) else None)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid session")
+    if hasattr(user, "model_dump"):
+        return user.model_dump()
+    if hasattr(user, "dict"):
+        return user.dict()
+    return dict(user)
+
+
+
+# ---------------------------------------------------------------------------
 # Admin Correction Logging endpoint
 # ---------------------------------------------------------------------------
 CORRECTIONS_LOG_PATH = Path(__file__).parent / "data" / "corrections_log.json"
@@ -1331,66 +1392,6 @@ async def analyze_ticket_v2(request: TicketRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ---------------------------------------------------------------------------
-# Clean cookie-based Supabase Auth endpoints for /auth/me backward-compatibility
-# ---------------------------------------------------------------------------
-ACCESS_COOKIE = "access_token"
-REFRESH_COOKIE = "refresh_token"
-ACCESS_MAX_AGE = 60 * 60
-REFRESH_MAX_AGE = 60 * 60 * 24 * 7
-
-
-def _cookie_kwargs() -> dict:
-    secure = os.getenv("ENV", "production").lower() != "development"
-    return {"httponly": True, "secure": secure, "samesite": "strict", "path": "/"}
-
-
-def extract_token(request: Request) -> str | None:
-    cookie_token = request.cookies.get(ACCESS_COOKIE)
-    if cookie_token:
-        return cookie_token
-    auth = request.headers.get("authorization") or request.headers.get("Authorization")
-    if auth and auth.lower().startswith("bearer "):
-        return auth.split(" ", 1)[1].strip() or None
-    return None
-
-
-def _set_session_cookies(response: Response, session) -> None:
-    if not session or not getattr(session, "access_token", None):
-        return
-    response.set_cookie(ACCESS_COOKIE, session.access_token, max_age=ACCESS_MAX_AGE, **_cookie_kwargs())
-    refresh = getattr(session, "refresh_token", None)
-    if refresh:
-        response.set_cookie(REFRESH_COOKIE, refresh, max_age=REFRESH_MAX_AGE, **_cookie_kwargs())
-
-
-def _clear_session_cookies(response: Response) -> None:
-    kwargs = _cookie_kwargs()
-    response.delete_cookie(ACCESS_COOKIE, path=kwargs["path"])
-    response.delete_cookie(REFRESH_COOKIE, path=kwargs["path"])
-
-
-async def get_current_user(request: Request) -> dict:
-    token = extract_token(request)
-    if not token:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    if not supabase:
-        raise HTTPException(status_code=503, detail="Database connection offline")
-    try:
-        result = supabase.auth.get_user(token)
-    except Exception as exc:
-        raise HTTPException(status_code=401, detail=f"Invalid session: {exc}") from exc
-
-    user = getattr(result, "user", None) or (result.get("user") if isinstance(result, dict) else None)
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid session")
-    if hasattr(user, "model_dump"):
-        return user.model_dump()
-    if hasattr(user, "dict"):
-        return user.dict()
-    return dict(user)
-
-
 class LoginBody(BaseModel):
     email: str
     password: str
@@ -1470,7 +1471,7 @@ async def auth_me(user: dict = Depends(get_current_user)):
 
 @app.post("/internal/sla/sweep")
 async def internal_sla_sweep(
-    company_id: Optional[str] = None,
+    company_id: str | None = None,
     send_alerts: bool = True
 ):
     """

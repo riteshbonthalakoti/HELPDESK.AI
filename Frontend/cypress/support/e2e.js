@@ -1,4 +1,4 @@
-/* eslint-disable no-unused-vars */
+// Cypress E2E support global setup
 /* global Cypress */
 // Cypress E2E support file
 import './commands';

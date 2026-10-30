@@ -10,7 +10,10 @@
     "preview": "vite preview",
     "deploy:cf": "npm run build && wrangler pages deploy dist --project-name=ai-helpdesk-frontend",
     "prepare": "husky || exit 0",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "cypress:open": "cypress open",
+    "cypress:run": "cypress run",
+    "test:e2e": "cypress run --browser electron"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
@@ -48,6 +51,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
     "autoprefixer": "^10.4.24",
+    "cypress": "^13.17.0",
     "eslint": "^9.39.2",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react": "^7.37.5",

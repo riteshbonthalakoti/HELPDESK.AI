@@ -2,114 +2,64 @@
  * E2E tests for issue #1404 — Auto-Close and Notification Workflows.
  *
  * Tests:
- *  - Resolving a ticket triggers a notification/toast
- *  - Auto-close setting changes are reflected in ticket behaviour
- *  - Notification panel shows auto-close events
- *  - Admin can manually close tickets
- *  - Auto-close toggle persistence
- *  - Webhook/notification trigger for auto-close events
+ *  - Auto-close setting changes and toggle persistence
+ *  - Admin ticket dashboard & detail navigation
+ *  - Notification & edge-case rendering
  */
 
-/* global describe, beforeEach, cy, it, Cypress */
+/* global cy, Cypress */
 
 describe('Auto-Close — Admin Settings Integration', () => {
   beforeEach(() => {
     if (Cypress.env('SKIP_AUTH') !== 'true') {
       cy.loginAsAdmin();
     }
+    cy.stubBackendApis();
   });
 
-  it('enables auto-close and sets days in settings', () => {
+  it('toggles auto-resolve and updates auto-close days in settings', () => {
     cy.visit('/admin/settings');
+    cy.contains(/Auto-Close Tickets/i).scrollIntoView().should('be.visible');
 
-    // Enable auto-close if the toggle exists
-    cy.get('input[type="checkbox"]').then(($boxes) => {
-      const $toggle = $boxes.filter((i, el) => {
-        const name = (el.name || '').toLowerCase();
-        const id = (el.id || '').toLowerCase();
-        return name.includes('auto') || id.includes('auto') || name.includes('close') || id.includes('close');
-      });
+    // Toggle Enable Auto Resolve
+    cy.get('button')
+      .filter((_, el) => el.className.includes('rounded-full') && el.className.includes('w-14'))
+      .first()
+      .scrollIntoView()
+      .click({ force: true });
 
-      if ($toggle.length) {
-        cy.wrap($toggle.first()).check({ force: true });
-        cy.wrap($toggle.first()).should('be.checked');
-      }
-    });
-
-    // Set days to 3
-    cy.get('input[type="number"]').then(($nums) => {
-      const $days = $nums.filter((i, el) => {
-        const name = (el.name || '').toLowerCase();
-        const id = (el.id || '').toLowerCase();
-        return name.includes('day') || id.includes('day');
-      });
-
-      if ($days.length) {
-        cy.wrap($days.first()).clear().type('3');
-        cy.wrap($days.first()).should('have.value', '3');
-      }
-    });
-
-    // Save
-    cy.get('button').contains(/save|update|apply/i).first().click();
-
-    // Verify no error
-    cy.get('body').should('not.contain', 'Error 500');
+    // Open Auto-Close days Select and pick 3 Days
+    cy.contains('button', /7 Days|3 Days|14 Days/i).scrollIntoView().click({ force: true });
+    cy.contains('button', /3 Days/i).scrollIntoView().click({ force: true });
+    cy.contains('button', /3 Days/i).scrollIntoView().should('be.visible');
   });
 
   it('persists auto-close settings after reload', () => {
     cy.visit('/admin/settings');
 
-    let initialChecked = null;
+    cy.contains('button', /7 Days|3 Days|14 Days/i).scrollIntoView().click({ force: true });
+    cy.contains('button', /14 Days/i).scrollIntoView().click({ force: true });
+    cy.reload();
 
-    cy.get('input[type="checkbox"]').then(($boxes) => {
-      const $toggle = $boxes.filter((i, el) =>
-        ['auto', 'close'].some(kw =>
-          (el.name || '').toLowerCase().includes(kw) ||
-          (el.id || '').toLowerCase().includes(kw)
-        )
-      );
-
-      if ($toggle.length) {
-        initialChecked = $toggle.first().is(':checked');
-        cy.wrap($toggle.first()).check({ force: true });
-        cy.get('button').contains(/save|update|apply/i).first().click();
-        cy.reload();
-
-        cy.get('input[type="checkbox"]').then(($reloaded) => {
-          const $reloadedToggle = $reloaded.filter((i, el) =>
-            ['auto', 'close'].some(kw =>
-              (el.name || '').toLowerCase().includes(kw) ||
-              (el.id || '').toLowerCase().includes(kw)
-            )
-          );
-
-          if ($reloadedToggle.length) {
-            cy.wrap($reloadedToggle.first()).should('be.checked');
-          }
-        });
-      }
-    });
+    cy.contains('button', /14 Days/i).scrollIntoView().should('be.visible');
   });
 
-  it('disables auto-close when toggle is off', () => {
+  it('disables auto-resolve when toggled off', () => {
     cy.visit('/admin/settings');
 
-    cy.get('input[type="checkbox"]').then(($boxes) => {
-      const $toggle = $boxes.filter((i, el) =>
-        ['auto', 'close'].some(kw =>
-          (el.name || '').toLowerCase().includes(kw) ||
-          (el.id || '').toLowerCase().includes(kw)
-        )
-      );
+    const getAutoResolveBtn = () =>
+      cy
+        .get('button')
+        .filter((_, el) => el.className.includes('rounded-full') && el.className.includes('w-14'))
+        .first();
 
-      if ($toggle.length) {
-        cy.wrap($toggle.first()).uncheck({ force: true });
-        cy.wrap($toggle.first()).should('not.be.checked');
-        cy.get('button').contains(/save|update|apply/i).first().click();
-        cy.get('body').should('not.contain', 'Error 500');
+    getAutoResolveBtn().then(($btn) => {
+      if ($btn.hasClass('bg-indigo-600')) {
+        cy.wrap($btn).scrollIntoView().click({ force: true });
       }
     });
+
+    getAutoResolveBtn().should('have.class', 'bg-slate-200');
   });
 });
 
@@ -118,36 +68,53 @@ describe('Auto-Close — Ticket Dashboard', () => {
     if (Cypress.env('SKIP_AUTH') !== 'true') {
       cy.loginAsAdmin();
     }
+    cy.stubBackendApis();
   });
 
   it('loads the admin tickets page', () => {
     cy.visit('/admin/tickets');
-    cy.get('body').should('not.contain', '500');
+    cy.get('body').should('not.contain', 'Error 500');
     cy.get('body').should('not.contain', 'Network Error');
   });
 
-  it('admin can see ticket list', () => {
+  it('admin can see ticket list view', () => {
     cy.visit('/admin/tickets');
     cy.get('body', { timeout: 10000 }).should('exist');
-    // Page loads without critical errors
-    cy.url().should('include', '/admin');
+    cy.url().should('include', '/admin/tickets');
   });
 
-  it('admin can open a ticket detail page', () => {
+  it('admin can open a ticket detail page when tickets exist', () => {
+    const mockTicket = {
+      id: 'notif-ticket-001',
+      ticket_id: 'notif-ticket-001',
+      subject: 'Firewall port 443 blocked',
+      summary: 'Firewall port 443 blocked',
+      status: 'open',
+      priority: 'high',
+      confidence: 0.9,
+      company: 'TestCorp',
+      created_at: new Date().toISOString(),
+    };
+
+    cy.intercept('GET', '**/rest/v1/tickets**', (req) => {
+      const wantsObject = String(req.headers.accept || '').includes(
+        'application/vnd.pgrst.object+json'
+      );
+      req.reply({
+        statusCode: 200,
+        body: wantsObject ? mockTicket : [mockTicket],
+      });
+    }).as('getSeededTickets');
+
     cy.visit('/admin/tickets');
-    cy.get('a, tr[data-ticket-id], [data-testid="ticket-row"]', { timeout: 8000 }).then(($links) => {
-      if ($links.length > 0) {
-        cy.wrap($links.first()).click();
-        cy.url().should('match', /\/admin\/ticket|\/admin\/tickets\//);
-      }
-    });
+    cy.wait('@getSeededTickets');
+    cy.get('button[title="Open Detailed View"]').first().scrollIntoView().click({ force: true });
+    cy.url().should('include', '/admin/ticket/notif-ticket-001');
   });
 
-  it('admin dashboard shows ticket count or empty state', () => {
+  it('admin dashboard shows ticket metrics', () => {
     cy.visit('/admin/dashboard');
-    cy.get('body', { timeout: 10000 }).should('exist');
-    // Should show some content (tickets or empty state), not a blank white screen
-    cy.get('body').should('not.be.empty');
+    cy.get('body', { timeout: 10000 }).should('not.be.empty');
   });
 });
 
@@ -156,26 +123,18 @@ describe('Notification Workflow', () => {
     if (Cypress.env('SKIP_AUTH') !== 'true') {
       cy.loginAsAdmin();
     }
+    cy.stubBackendApis();
   });
 
-  it('notification icon or area exists on admin dashboard', () => {
+  it('admin dashboard renders cleanly', () => {
     cy.visit('/admin/dashboard');
-    cy.get('[data-testid*="notif"], [aria-label*="notif"], .notification, #notification, bell, [class*="bell"]', {
-      timeout: 8000,
-    }).should('have.length.at.least', 0);
-    // Lenient: if no notification UI, page should still load
-    cy.get('body').should('exist');
+    cy.get('body').should('be.visible');
   });
 
-  it('admin settings has webhook configuration section', () => {
+  it('admin settings renders notification preferences', () => {
     cy.visit('/admin/settings');
-    cy.get('body').then(($b) => {
-      const hasWebhook = $b.text().toLowerCase().includes('webhook') ||
-                         $b.text().toLowerCase().includes('notification') ||
-                         $b.text().toLowerCase().includes('slack');
-      // Accept pages with or without webhook settings
-      expect(true).to.be.true;
-    });
+    cy.contains(/Email Notifications/i).scrollIntoView().should('be.visible');
+    cy.contains(/Critical Admin Alerts/i).scrollIntoView().should('be.visible');
   });
 });
 
@@ -184,52 +143,22 @@ describe('Auto-Close — Edge Cases', () => {
     if (Cypress.env('SKIP_AUTH') !== 'true') {
       cy.loginAsAdmin();
     }
+    cy.stubBackendApis();
   });
 
-  it('rejects auto-close days of 0', () => {
+  it('restricts auto-close days to positive preset durations (3, 7, 14)', () => {
     cy.visit('/admin/settings');
-
-    cy.get('input[type="number"]').then(($nums) => {
-      const $days = $nums.filter((i, el) =>
-        (el.name || '').toLowerCase().includes('day') ||
-        (el.id || '').toLowerCase().includes('day')
-      );
-
-      if ($days.length) {
-        cy.wrap($days.first()).clear().type('0');
-        const minAttr = $days.first().attr('min');
-        if (minAttr !== undefined) {
-          expect(parseFloat(minAttr)).to.be.at.least(1);
-        }
-      }
-    });
-  });
-
-  it('rejects auto-close days above max', () => {
-    cy.visit('/admin/settings');
-
-    cy.get('input[type="number"]').then(($nums) => {
-      const $days = $nums.filter((i, el) =>
-        (el.name || '').toLowerCase().includes('day') ||
-        (el.id || '').toLowerCase().includes('day')
-      );
-
-      if ($days.length) {
-        const maxAttr = $days.first().attr('max');
-        if (maxAttr !== undefined) {
-          cy.wrap($days.first()).clear().type(String(parseFloat(maxAttr) + 1));
-          cy.get('button').contains(/save|update/i).first().click();
-          cy.get('body').should('exist');
-        }
-      }
-    });
+    cy.contains('button', /7 Days|3 Days|14 Days/i).scrollIntoView().click({ force: true });
+    cy.contains('button', /^3 Days$/i).should('exist');
+    cy.contains('button', /^7 Days$/i).should('exist');
+    cy.contains('button', /^14 Days$/i).should('exist');
+    cy.contains('button', /^0 Days$/i).should('not.exist');
   });
 
   it('page does not crash when settings are left at defaults', () => {
     cy.visit('/admin/settings');
-    cy.get('button').contains(/save|update|apply/i).first().click();
     cy.get('body').should('not.contain', 'Unhandled');
     cy.get('body').should('not.contain', 'Error 500');
-    cy.url().should('include', '/admin');
+    cy.url().should('include', '/admin/settings');
   });
 });
