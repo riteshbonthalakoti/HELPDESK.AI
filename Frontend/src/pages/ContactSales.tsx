@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
  
 import { motion } from 'framer-motion';
-import { Building2, Mail, User, Phone, MessageSquare, ArrowRight, CheckCircle2, ShieldCheck, Zap, Server } from 'lucide-react';
+import { Building2, Mail, User, Phone, MessageSquare, ArrowRight, CheckCircle2, ShieldCheck, Zap, Server, Globe } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 
@@ -54,6 +54,7 @@ export default function ContactSales() {
             name: '',
             email: '',
             company: '',
+            website: '',
             phone: '',
             company_size: companySizeInit,
             message: ''
@@ -91,6 +92,22 @@ export default function ContactSales() {
             newErrors.email = 'Please enter a valid work email address (e.g. john@company.com).';
         }
 
+        // Phone: optional but if provided must match valid format
+        if (formData.phone && formData.phone.trim()) {
+            const phoneRegex = /^\+?[\d\s\-().]{7,20}$/;
+            if (!phoneRegex.test(formData.phone.trim())) {
+                newErrors.phone = 'Please enter a valid phone number (e.g. +1 555 000 0000).';
+            }
+        }
+
+        // Company Website: optional but if provided must be a valid URL
+        if (formData.website && formData.website.trim()) {
+            const urlRegex = /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?$/i;
+            if (!urlRegex.test(formData.website.trim())) {
+                newErrors.website = 'Please enter a valid website URL (e.g. https://company.com).';
+            }
+        }
+
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
@@ -108,7 +125,8 @@ export default function ContactSales() {
                         name: formData.name,
                         email: formData.email,
                         company: formData.company,
-                        phone: formData.phone,
+                        website: formData.website || null,
+                        phone: formData.phone || null,
                         company_size: formData.company_size,
                         message: formData.message
                     }
@@ -297,20 +315,41 @@ export default function ContactSales() {
                                 </div>
                             </div>
 
-                            <div className="space-y-1.5">
-                                <label className="text-sm font-semibold text-gray-700 ml-1">Phone Number</label>
-                                <div className="relative">
-                                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                                        <Phone className="h-5 w-5 text-gray-400" />
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                <div className="space-y-1.5">
+                                    <label className="text-sm font-semibold text-gray-700 ml-1">Company Website</label>
+                                    <div className="relative">
+                                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                                            <Globe className="h-5 w-5 text-gray-400" />
+                                        </div>
+                                        <input 
+                                            type="url" 
+                                            name="website"
+                                            className={`w-full pl-11 pr-4 py-3 bg-white border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all font-medium text-gray-900 ${errors.website ? 'border-red-400' : 'border-gray-200'}`}
+                                            placeholder="https://company.com"
+                                            value={formData.website}
+                                            onChange={handleChange}
+                                        />
                                     </div>
-                                    <input 
-                                        type="tel" 
-                                        name="phone"
-                                        className="w-full pl-11 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all font-medium text-gray-900" 
-                                        placeholder="+1 (555) 000-0000"
-                                        value={formData.phone}
-                                        onChange={handleChange}
-                                    />
+                                    {errors.website && <p className="text-red-500 text-xs mt-1 ml-1">{errors.website}</p>}
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <label className="text-sm font-semibold text-gray-700 ml-1">Phone Number</label>
+                                    <div className="relative">
+                                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                                            <Phone className="h-5 w-5 text-gray-400" />
+                                        </div>
+                                        <input 
+                                            type="tel" 
+                                            name="phone"
+                                            className={`w-full pl-11 pr-4 py-3 bg-white border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all font-medium text-gray-900 ${errors.phone ? 'border-red-400' : 'border-gray-200'}`}
+                                            placeholder="+1 (555) 000-0000"
+                                            value={formData.phone}
+                                            onChange={handleChange}
+                                        />
+                                    </div>
+                                    {errors.phone && <p className="text-red-500 text-xs mt-1 ml-1">{errors.phone}</p>}
                                 </div>
                             </div>
 
