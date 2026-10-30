@@ -1489,3 +1489,42 @@ async def internal_sla_sweep(
         }
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"SLA escalation sweep failed: {exc}")
+
+
+@app.get("/internal/sla/forecast")
+async def internal_sla_forecast(
+    company_id: Optional[str] = None
+):
+    """
+    On-demand management endpoint for real-time predictive SLA breach risk distribution.
+    Computes proactive P(breach) telemetry and dynamic capacity balancing insights.
+    """
+    from backend.services.sla_forecasting_service import sla_forecaster
+    try:
+        active_tickets = []
+        team_queues: Dict[str, int] = {}
+        if supabase:
+            try:
+                query = supabase.table("tickets").select("*").in_("status", ["open", "in_progress", "pending"])
+                if company_id:
+                    query = query.eq("company_id", company_id)
+                resp = await asyncio.to_thread(query.execute)
+                active_tickets = resp.data or []
+                for t in active_tickets:
+                    tm = t.get("assigned_team") or "General Support"
+                    team_queues[tm] = team_queues.get(tm, 0) + 1
+            except Exception as e:
+                logger.warning(f"Could not fetch live tickets for SLA forecasting: {e}")
+
+        distribution = sla_forecaster.get_company_risk_distribution(
+            company_id=company_id or "all",
+            active_tickets=active_tickets,
+            team_queues=team_queues
+        )
+        return {
+            "success": True,
+            "data": distribution
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"SLA forecasting failed: {exc}")
+
