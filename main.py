@@ -22,6 +22,23 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
+# CORS — origins loaded dynamically from ALLOWED_ORIGINS env var
+# Wildcards are never used; all origins must be explicitly listed
+try:
+    cors_origins = settings.cors_origins
+    if not cors_origins:
+        raise ValueError("ALLOWED_ORIGINS is empty — CORS will block all requests.")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=cors_origins,
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "X-CSRF-Token", "X-Request-ID"],
+    )
+    logger.info(f"[CORS] Configured for {len(cors_origins)} origin(s): {cors_origins}")
+except Exception as cors_err:
+    logger.error(f"[CORS] Configuration failed: {cors_err}. No CORS middleware applied — requests may be blocked.")
+
 from backend.security_middleware import SecurityHeadersMiddleware
 app.add_middleware(SecurityHeadersMiddleware)
 app.include_router(upload_router.router)
