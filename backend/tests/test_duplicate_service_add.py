@@ -75,3 +75,42 @@ class TestDuplicateServiceAddTicket:
             svc.add_ticket("DISK-001", "Persistent ticket")
 
         mock_save.assert_called_once_with("DISK-001", "Persistent ticket")
+
+    def test_added_ticket_is_recognized_by_check_duplicate(self):
+        """Verify that after add_ticket, check_duplicate successfully detects the stored ticket."""
+        svc = DuplicateService()
+        mock_model = MagicMock()
+        mock_embedding = MagicMock()
+        mock_model.encode.return_value = mock_embedding
+        svc.model = mock_model
+        svc._loaded = True
+
+        with patch.object(svc, 'save_to_disk'):
+            svc.add_ticket("TICKET-MATCH", "Database connection pool timeout error")
+
+        # Mock cos_sim to return high similarity match
+        mock_cos_sim = MagicMock()
+        mock_cos_sim.item.return_value = 0.95
+        with patch('services.duplicate_service.util.cos_sim', return_value=mock_cos_sim):
+            result = svc.check_duplicate("Database connection pool timeout error")
+
+        assert result["is_duplicate"] is True
+        assert result["duplicate_ticket_id"] == "TICKET-MATCH"
+        assert result["similarity"] == 0.95
+
+    def test_add_ticket_ensures_storage_directory_creation(self, tmp_path):
+        """Verify that add_ticket safely creates nested parent directory if it does not exist."""
+        nested_storage = tmp_path / "custom_nested_dir" / "knowledge_base.json"
+        svc = DuplicateService()
+        svc.storage_file = str(nested_storage)
+        mock_model = MagicMock()
+        mock_model.encode.return_value = MagicMock()
+        svc.model = mock_model
+        svc._loaded = True
+
+        svc.add_ticket("TICKET-DIR-01", "Verifying auto-directory creation")
+
+        assert os.path.exists(str(nested_storage))
+        with open(str(nested_storage), "r", encoding="utf-8") as f:
+            data = json.load(f)
+        assert data[0]["ticket_id"] == "TICKET-DIR-01"
