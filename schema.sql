@@ -730,9 +730,21 @@ CREATE TRIGGER update_user_feedback_timestamp
 	FOR EACH ROW
 	EXECUTE FUNCTION update_timestamp();
 
+-- Agentic Self-Healing Actions Engine (#4115)
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS resolution_note text;
 
+CREATE TABLE IF NOT EXISTS action_execution_logs (
+	id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+	ticket_id text NOT NULL,
+	company_id uuid REFERENCES companies(id) ON DELETE CASCADE,
+	playbook_name text NOT NULL,
+	parameters jsonb NOT NULL DEFAULT '{}'::jsonb,
+	dry_run boolean NOT NULL DEFAULT false,
+	status text NOT NULL,
+	diagnostic_summary text,
+	executed_at timestamptz NOT NULL DEFAULT timezone('utc'::text, now())
+);
 
-
-
-
-
+CREATE INDEX IF NOT EXISTS idx_action_execution_logs_ticket_id ON action_execution_logs(ticket_id);
+ALTER TABLE action_execution_logs ENABLE ROW LEVEL SECURITY;
+GRANT SELECT, INSERT, UPDATE, DELETE ON action_execution_logs TO authenticated, service_role;

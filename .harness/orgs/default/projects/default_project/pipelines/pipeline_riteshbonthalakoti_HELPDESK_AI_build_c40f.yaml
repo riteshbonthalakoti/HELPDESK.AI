@@ -1,0 +1,57 @@
+pipeline:
+  id: pipeline_riteshbonthalakoti_HELPDESK_AI_build_c40f
+  name: pipeline_riteshbonthalakoti_HELPDESK_AI_build_c40f
+  stages:
+    - id: test
+      name: Test
+      runtime: cloud
+      clone:
+        enabled: true
+      cache:
+        enabled: true
+      steps:
+        - id: install_dependencies
+          name: Install Dependencies
+          run:
+            shell: bash
+            script: |-
+              python3 --version
+              pip install --upgrade pip
+              # Install lighter subset that covers service imports (avoiding heavy ML deps)
+              pip install fastapi uvicorn pydantic pydantic-settings python-dotenv slowapi structlog \
+                          supabase requests httpx apscheduler \
+                          pytest pytest-cov pytest-asyncio pytest-mock
+              # Attempt full requirements but tolerate torch/transformers failures in CI
+              pip install -r requirements.txt --ignore-requires-python || true
+          timeout: 15m
+        - id: test
+          name: Run Tests
+          run:
+            shell: bash
+            env:
+              ALLOW_DEGRADED_STARTUP: "1"
+              SUPABASE_URL: https://placeholder.supabase.co
+              SUPABASE_SERVICE_KEY: placeholder_key
+              PYTHONPATH: /harness
+            script: |-
+              mkdir -p .harness/reports .harness/coverage
+              pytest backend/tests \
+                --junitxml=.harness/reports/junit.xml \
+                --cov=backend/services \
+                --cov-report=xml:.harness/coverage/coverage.xml \
+                --cov-report=term-missing \
+                -v
+            report:
+              type: junit
+              paths:
+                - .harness/reports/junit.xml
+          timeout: 20m
+        - id: upload_coverage
+          name: Upload Coverage
+          run:
+            shell: bash
+            script: |-
+              test -s ".harness/coverage/coverage.xml"
+              hcli cov upload --file=".harness/coverage/coverage.xml"
+  tags:
+    onboarding: "true"

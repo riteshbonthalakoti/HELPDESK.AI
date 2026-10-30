@@ -12,7 +12,7 @@ from backend.config import settings
 from backend.swagger_config import SWAGGER_UI_CUSTOM_CSS, SWAGGER_UI_CUSTOM_JS
 from backend.routers import metrics as metrics_router
 
-from backend.routers import tickets, ai, admin, health, auth, websocket, sla_prediction, ticket_merge
+from backend.routers import tickets, ai, admin, health, auth, websocket, sla_prediction, ticket_merge, actions
 from backend.routes import translation, estimator, voice, privacy, active_learning, weekly_digest
 from backend.routers import upload as upload_router
 
@@ -72,6 +72,7 @@ app.include_router(voice.router)
 app.include_router(privacy.router)
 app.include_router(active_learning.router)
 app.include_router(weekly_digest.router)
+app.include_router(actions.router)
 
 
 # ---------------------------------------------------------------------------
