@@ -11,6 +11,7 @@ import { Badge } from "../../components/ui/badge";
 import { Select } from "../../components/ui/select";
 import { formatTicketId } from "../../utils/format";
 import TicketStatusBadge from "../components/TicketStatusBadge";
+import useDebounce from "../../hooks/useDebounce";
 import { formatTimelineDate, getTimeZoneAbbr } from "../../utils/dateUtils";
 import {
     Tooltip,
@@ -90,12 +91,16 @@ function MyTickets() {
         };
     }, [user, fetchTickets]); // Re-subscribe when user changes
 
-    // Filtering logic
+    // Debounce search query by 300ms to eliminate typing lag
+    const debouncedSearchQuery = useDebounce(searchQuery, 300);
+
+    // Filtering logic with debounced search query
     const filteredTickets = useMemo(() => {
         return tickets
             .filter(ticket => {
-                const searchLower = searchQuery.toLowerCase();
+                const searchLower = debouncedSearchQuery.toLowerCase().trim();
                 const matchesSearch =
+                    !searchLower ||
                     (ticket.subject || '').toLowerCase().includes(searchLower) ||
                     (ticket.summary || '').toLowerCase().includes(searchLower) ||
                     (ticket.description || '').toLowerCase().includes(searchLower) ||
@@ -109,7 +114,7 @@ function MyTickets() {
 
                 return matchesSearch && matchesStatus && matchesPriority;
             });
-    }, [tickets, searchQuery, statusFilter, priorityFilter]);
+    }, [tickets, debouncedSearchQuery, statusFilter, priorityFilter]);
 
 
     const getPriorityColor = (priority) => {

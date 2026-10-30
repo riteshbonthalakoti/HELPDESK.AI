@@ -22,6 +22,7 @@ import {
     RotateCcw,
 } from 'lucide-react';
 import { Select } from "../../components/ui/select";
+import useDebounce from "../../hooks/useDebounce";
 import { formatTicketId } from "../../utils/format";
 import SLABadge from "../components/SLABadge";
 import { formatTimelineDate } from "../../utils/dateUtils";
@@ -181,9 +182,11 @@ const AdminTickets = () => {
     const statuses = ['All', 'Open', 'In Progress', 'Resolved', 'Closed'];
     const teams = ['All', 'Software Team', 'Hardware Support', 'Network Ops', 'Security Unit', 'General Support'];
 
+    const debouncedSearchQuery = useDebounce(searchQuery, 300);
+
     const filteredTickets = useMemo(() => {
-        if (!searchQuery) return tickets;
-        const q = searchQuery.toLowerCase();
+        if (!debouncedSearchQuery) return tickets;
+        const q = debouncedSearchQuery.toLowerCase().trim();
         return tickets.filter(t =>
             String(t.id).includes(q) ||
             (t.subject || '').toLowerCase().includes(q) ||
@@ -191,7 +194,7 @@ const AdminTickets = () => {
             (t.description || '').toLowerCase().includes(q) ||
             (t.profiles?.full_name || '').toLowerCase().includes(q)
         );
-    }, [tickets, searchQuery]);
+    }, [tickets, debouncedSearchQuery]);
 
     const getPriorityStyle = (priority) => {
         const p = String(priority || '').toLowerCase();
@@ -230,8 +233,11 @@ const AdminTickets = () => {
                             placeholder="Search..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-12 pr-4 py-3 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-emerald-500/5 focus:border-emerald-500 focus:bg-white transition-all text-slate-700 placeholder:text-slate-400"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-12 pr-10 py-3 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-emerald-500/5 focus:border-emerald-500 focus:bg-white transition-all text-slate-700 placeholder:text-slate-400"
                         />
+                        {searchQuery !== debouncedSearchQuery && (
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-emerald-500 animate-ping pointer-events-none" title="Debouncing search..." />
+                        )}
                     </div>
 
                     {/* Status Filter */}
