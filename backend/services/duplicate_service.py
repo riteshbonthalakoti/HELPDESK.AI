@@ -87,6 +87,14 @@ class DuplicateService:
                 "similarity": float
             }
         """
+        # Early return for empty or whitespace-only text to prevent unnecessary model loading & division errors
+        if not text or not str(text).strip():
+            return {
+                "is_duplicate": False,
+                "duplicate_ticket_id": None,
+                "similarity": 0.0,
+            }
+
         self.load()
         
         # Use provided threshold or default to global constant

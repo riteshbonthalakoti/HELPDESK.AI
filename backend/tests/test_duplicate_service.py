@@ -225,3 +225,49 @@ class TestDuplicateServiceThreadSafety:
 
         # Check total tickets added
         assert len(svc._tickets) == 10
+
+
+# ---------------------------------------------------------------------------
+# check_duplicate() — empty & whitespace handling (#4080)
+# ---------------------------------------------------------------------------
+
+class TestDuplicateServiceEmptyWhitespace:
+    """Tests for empty and whitespace-only text in check_duplicate (#4080)."""
+
+    def test_empty_string_returns_early(self):
+        svc = DuplicateService()
+        svc.model = None
+        svc._loaded = False
+        res = svc.check_duplicate("")
+        assert res == {
+            "is_duplicate": False,
+            "duplicate_ticket_id": None,
+            "similarity": 0.0,
+        }
+        # Model must not have been loaded
+        assert svc._loaded is False
+
+    def test_whitespace_string_returns_early(self):
+        svc = DuplicateService()
+        svc.model = None
+        svc._loaded = False
+        res = svc.check_duplicate("    \n\t  ")
+        assert res == {
+            "is_duplicate": False,
+            "duplicate_ticket_id": None,
+            "similarity": 0.0,
+        }
+        # Model must not have been loaded
+        assert svc._loaded is False
+
+    def test_none_input_returns_early(self):
+        svc = DuplicateService()
+        svc.model = None
+        svc._loaded = False
+        res = svc.check_duplicate(None)
+        assert res == {
+            "is_duplicate": False,
+            "duplicate_ticket_id": None,
+            "similarity": 0.0,
+        }
+        assert svc._loaded is False
