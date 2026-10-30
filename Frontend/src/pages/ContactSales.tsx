@@ -42,6 +42,7 @@ export default function ContactSales() {
     const navigate = useNavigate();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
+    const [errors, setErrors] = useState({});
     const [formData, setFormData] = useState(() => {
         // Validate the stored company_size against known valid options
         const stored = safeGetItem(LS_KEY);
@@ -65,10 +66,38 @@ export default function ContactSales() {
         if (name === 'company_size') {
             safeSetItem(LS_KEY, value);
         }
+        // Clear error on change
+        if (errors[name]) {
+            setErrors(prev => ({ ...prev, [name]: '' }));
+        }
+    };
+
+    const validateForm = () => {
+        const newErrors = {};
+
+        // Full Name: letters, spaces, hyphens, apostrophes only
+        const nameRegex = /^[a-zA-Z\s'\-]{2,100}$/;
+        if (!formData.name.trim()) {
+            newErrors.name = 'Full name is required.';
+        } else if (!nameRegex.test(formData.name.trim())) {
+            newErrors.name = 'Full name must contain only letters, spaces, hyphens, or apostrophes.';
+        }
+
+        // Work Email: must have valid domain with TLD (e.g. abc@company.com)
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+        if (!formData.email.trim()) {
+            newErrors.email = 'Work email is required.';
+        } else if (!emailRegex.test(formData.email.trim())) {
+            newErrors.email = 'Please enter a valid work email address (e.g. john@company.com).';
+        }
+
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (!validateForm()) return;
         setIsSubmitting(true);
         
         try {
@@ -197,12 +226,13 @@ export default function ContactSales() {
                                             type="text" 
                                             required 
                                             name="name"
-                                            className="w-full pl-11 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all font-medium text-gray-900" 
+                                            className={`w-full pl-11 pr-4 py-3 bg-white border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all font-medium text-gray-900 ${errors.name ? 'border-red-400' : 'border-gray-200'}`}
                                             placeholder="John Doe"
                                             value={formData.name}
                                             onChange={handleChange}
                                         />
                                     </div>
+                                    {errors.name && <p className="text-red-500 text-xs mt-1 ml-1">{errors.name}</p>}
                                 </div>
 
                                 <div className="space-y-1.5">
@@ -215,12 +245,13 @@ export default function ContactSales() {
                                             type="email" 
                                             required 
                                             name="email"
-                                            className="w-full pl-11 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all font-medium text-gray-900" 
+                                            className={`w-full pl-11 pr-4 py-3 bg-white border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all font-medium text-gray-900 ${errors.email ? 'border-red-400' : 'border-gray-200'}`}
                                             placeholder="john@company.com"
                                             value={formData.email}
                                             onChange={handleChange}
                                         />
                                     </div>
+                                    {errors.email && <p className="text-red-500 text-xs mt-1 ml-1">{errors.email}</p>}
                                 </div>
                             </div>
 
