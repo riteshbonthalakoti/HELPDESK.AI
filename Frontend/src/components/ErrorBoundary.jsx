@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AlertTriangle, Copy, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, Copy, RefreshCw, CheckCircle2, Home } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const ErrorFallback = ({ error, resetError }) => {
@@ -59,12 +59,20 @@ const ErrorFallback = ({ error, resetError }) => {
             </div>
           </div>
 
-          <div className="flex justify-end pt-2 border-t border-gray-100 dark:border-gray-700">
+          <div className="flex items-center justify-between pt-4 border-t border-gray-100 dark:border-gray-700">
+            <button
+              type="button"
+              onClick={() => { window.location.href = '/'; }}
+              className="flex items-center gap-2 text-xs font-semibold text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors"
+            >
+              <Home className="w-4 h-4" />
+              Return to Dashboard
+            </button>
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.95 }}
               onClick={resetError}
-              className="flex items-center gap-2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 px-6 py-2.5 rounded-lg font-medium shadow-sm transition-colors"
+              className="flex items-center gap-2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 px-5 py-2 rounded-lg font-medium shadow-sm text-xs transition-colors"
             >
               <RefreshCw className="w-4 h-4" />
               Try Again
