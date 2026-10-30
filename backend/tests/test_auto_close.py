@@ -98,6 +98,26 @@ class TestAutoCloseService(unittest.TestCase):
         self.assertIsNotNone(instance)
         self.assertIs(get_instance(), instance)
 
+    def test_empty_string_env_variables_fallback(self):
+        """Test that empty string environment variables fallback gracefully without crashing (Issue #4104)."""
+        with patch.dict(os.environ, {"SUPABASE_URL": "", "SUPABASE_SERVICE_ROLE_KEY": ""}):
+            with patch("backend.services.auto_close_service.create_client") as mock_create:
+                service = AutoCloseService()
+                mock_create.assert_called_once_with("http://localhost", "dummy")
+                self.assertIsNotNone(service)
+
+    def test_init_exception_graceful_fallback(self):
+        """Test that SupabaseException or connection error enters graceful fallback mode."""
+        with patch.dict(os.environ, {"SUPABASE_URL": "invalid-url", "SUPABASE_SERVICE_ROLE_KEY": "invalid-key"}):
+            with patch("backend.services.auto_close_service.create_client", side_effect=Exception("supabase_url is required")):
+                service = AutoCloseService()
+                self.assertIsNone(service.supabase)
+                # Ensure get_company_settings does not crash when self.supabase is None
+                settings = service.get_company_settings("comp-123")
+                self.assertEqual(settings["auto_close_days"], 7)
+                self.assertFalse(settings["auto_close_enabled"])
+
+
     def test_run_when_disabled(self):
         self.service.enabled = False
         res = self.service.run()

@@ -37,10 +37,15 @@ class AutoCloseService:
 
     def __init__(self):
         """Initialize the auto-close service with Supabase client."""
-        self.supabase = create_client(
-            os.getenv("SUPABASE_URL", "http://localhost"),
-            os.getenv("SUPABASE_SERVICE_ROLE_KEY", "dummy")
-        )
+        # Defensive extraction for empty string env variables (Fixes #4104)
+        url = (os.getenv("SUPABASE_URL") or "").strip() or "http://localhost"
+        key = (os.getenv("SUPABASE_SERVICE_ROLE_KEY") or "").strip() or "dummy"
+        
+        try:
+            self.supabase = create_client(url, key)
+        except Exception as e:
+            logger.warning(f"Could not initialize Supabase client ({url}): {e}. Operating in graceful fallback mode.")
+            self.supabase = None
         self.enabled = os.getenv("AUTO_CLOSE_ENABLED", "true").lower() == "true"
         self.default_auto_close_days = int(os.getenv("AUTO_CLOSE_DAYS", "7"))
         self.cron_schedule = os.getenv("AUTO_CLOSE_CRON_SCHEDULE", "0 2 * * *")  # 2 AM UTC daily
@@ -68,6 +73,13 @@ class AutoCloseService:
             else:
                 # Legacy test format
                 return cache_entry
+
+        if not self.supabase:
+            return {
+                "auto_close_days": self.default_auto_close_days,
+                "auto_close_enabled": False,
+                "_is_fallback": True
+            }
 
         try:
             response = self.supabase.table("system_settings").select(
