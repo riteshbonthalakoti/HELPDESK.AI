@@ -5,7 +5,20 @@ Covers all PII types: emails, phones, API keys, IPs, credit cards, SSNs.
 """
 
 import pytest
-from pii_redaction import redact_pii, redact_pii_dict, scan_pii
+import sys
+import os
+
+# Ensure backend root is on sys.path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from pii_redaction import (
+    redact_pii,
+    redact_secrets,
+    redact_pii_dict,
+    scan_pii,
+    calculate_shannon_entropy,
+    REDACTED_SECRET,
+)
 
 
 class TestRedactEmails:
@@ -175,3 +188,50 @@ class TestEdgeCases:
         result = redact_pii(text)
         assert "Ticket #1234" in result
         assert "billing@company.com" not in result
+
+
+class TestSecretsAndEntropyRedaction:
+    """Specific unit tests for Issue #4107: Bearer, GitHub PAT, AWS, JWT, and Entropy masking."""
+
+    def test_bearer_authorization_redaction(self):
+        text = "Authorization: Bearer mySecretToken1234567890"
+        result = redact_secrets(text)
+        assert "[REDACTED_SECRET]" in result
+        assert "mySecretToken1234567890" not in result
+
+    def test_github_pat_redaction(self):
+        text = "ghp_123456789012345678901234567890123456"
+        result = redact_secrets(text)
+        assert "[REDACTED_SECRET]" in result
+        assert "ghp_" not in result
+
+    def test_aws_access_key_redaction(self):
+        text = "Key: AKIA1234567890ABCDEF"
+        result = redact_secrets(text)
+        assert "[REDACTED_SECRET]" in result
+        assert "AKIA1234567890ABCDEF" not in result
+
+    def test_jwt_supabase_token(self):
+        jwt = "ey" + "JhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9." + "eyJmYWtlIjoidGVzdCJ9." + "fakesignature"
+        result = redact_secrets(f"Token: {jwt}")
+        assert "[REDACTED_SECRET]" in result
+        assert jwt not in result
+
+    def test_shannon_entropy_calculation(self):
+        assert calculate_shannon_entropy("") == 0.0
+        assert calculate_shannon_entropy("aaaaaaaaaaaa") == 0.0
+        assert calculate_shannon_entropy("rK8!bX4@mQ9$vL2%") > 3.0
+
+    def test_entropy_filter_masking(self):
+        high_entropy_token = "4f8b9c2a" + "1e7d6f5a" + "3b2c1d0e" + "9f8a7b6c"
+        result = redact_secrets(f"Hex Secret: {high_entropy_token}", use_entropy=True)
+        assert "[REDACTED_SECRET]" in result
+        assert high_entropy_token not in result
+
+    def test_redact_pii_with_secret_replacement(self):
+        text = "User john@test.com with token ghp_123456789012345678901234567890123456"
+        result = redact_pii(text, secret_replacement="[REDACTED_SECRET]")
+        assert "[REDACTED]" in result  # For email
+        assert "[REDACTED_SECRET]" in result  # For GitHub token
+        assert "ghp_" not in result
+        assert "john@test.com" not in result

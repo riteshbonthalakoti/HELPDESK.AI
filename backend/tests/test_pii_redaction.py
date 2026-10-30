@@ -25,6 +25,9 @@ from services.pii_redaction import (
     is_pii_redaction_enabled,
     _luhn_check,
     REDACTED,
+    REDACTED_SECRET,
+    redact_secrets,
+    calculate_shannon_entropy,
 )
 
 
@@ -321,3 +324,62 @@ class TestToggleMechanism:
         assert "test@test.com" in result["description"]
         # Re-enable
         set_pii_redaction_enabled(True)
+
+
+class TestEntropyAndSecretMasking:
+    """Tests for expanded PII redaction and Shannon entropy secret masking (Issue #4107)."""
+
+    def test_shannon_entropy_calculation(self):
+        # Empty string
+        assert calculate_shannon_entropy("") == 0.0
+        # Low entropy (repeated characters)
+        low_ent = calculate_shannon_entropy("aaaaaaaaaaaaaaaa")
+        assert low_ent == 0.0
+        # High entropy (random cryptographic token)
+        high_ent = calculate_shannon_entropy("dK9#mQ2$vL8*xP1@zT5!")
+        assert high_ent > 3.5
+
+    def test_bearer_authorization_header(self):
+        dummy_tok = "ey" + "JhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
+        sample = f"Authorization: Bearer {dummy_tok}"
+        result = redact_secrets(sample, replacement=REDACTED_SECRET)
+        assert REDACTED_SECRET in result
+        assert "eyJhbGciOiJIUzI1Ni" not in result
+
+    def test_bearer_custom_token(self):
+        sample = "Headers: Bearer sec_token_1234567890abcdef"
+        result = redact_secrets(sample, replacement=REDACTED_SECRET)
+        assert REDACTED_SECRET in result
+        assert "sec_token_1234567890abcdef" not in result
+
+    def test_github_pat_redaction(self):
+        sample = "My token is ghp_123456789012345678901234567890123456 for deployment"
+        result = redact_secrets(sample, replacement=REDACTED_SECRET)
+        assert REDACTED_SECRET in result
+        assert "ghp_123456789012345678901234567890123456" not in result
+
+    def test_aws_access_key_redaction(self):
+        sample = "AWS_KEY=AKIAIOSFODNN7EXAMPLE"
+        result = redact_secrets(sample, replacement=REDACTED_SECRET)
+        assert REDACTED_SECRET in result
+        assert "AKIAIOSFODNN7EXAMPLE" not in result
+
+    def test_jwt_supabase_token_redaction(self):
+        jwt = "ey" + "JhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9." + "eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4ifQ." + "SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+        sample = f"Supabase auth token: {jwt}"
+        result = redact_secrets(sample, replacement=REDACTED_SECRET)
+        assert REDACTED_SECRET in result
+        assert jwt not in result
+
+    def test_entropy_based_secret_detection(self):
+        # 32-char hex secret
+        raw_secret = "4f8b9c2a" + "1e7d6f5a" + "3b2c1d0e" + "9f8a7b6c"
+        sample = f"API secret: {raw_secret}"
+        result = redact_secrets(sample, replacement=REDACTED_SECRET, use_entropy=True)
+        assert REDACTED_SECRET in result
+        assert raw_secret not in result
+
+    def test_safe_text_preservation(self):
+        safe_msg = "Please update ticket status to closed for customer inquiry."
+        result = redact_secrets(safe_msg, replacement=REDACTED_SECRET)
+        assert result == safe_msg

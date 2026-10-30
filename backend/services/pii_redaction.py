@@ -10,6 +10,7 @@ for Supabase Database Backups.
 """
 
 import re
+import math
 import logging
 from typing import Any
 
@@ -109,6 +110,7 @@ IP_PATTERN = re.compile(
 
 # Redaction token
 REDACTED = "[REDACTED]"
+REDACTED_SECRET = "[REDACTED_SECRET]"
 
 
 # ---------------------------------------------------------------------------
@@ -164,6 +166,41 @@ def redact_phones(text: str) -> str:
             result = result.replace(candidate, REDACTED, 1)
     return result
 
+
+
+def calculate_shannon_entropy(data: str) -> float:
+    """Calculate the Shannon entropy of a given string."""
+    if not data:
+        return 0.0
+    length = len(data)
+    frequencies = {}
+    for char in data:
+        frequencies[char] = frequencies.get(char, 0) + 1
+    entropy = 0.0
+    for count in frequencies.values():
+        p_x = count / length
+        if p_x > 0:
+            entropy -= p_x * math.log2(p_x)
+    return entropy
+
+
+def redact_secrets(text: str, replacement: str = REDACTED_SECRET, use_entropy: bool = True) -> str:
+    """Replace API keys, tokens, Bearer headers and high-entropy secrets."""
+    if not isinstance(text, str):
+        return text
+    result = text
+    for pattern in API_KEY_PATTERNS:
+        result = pattern.sub(replacement, result)
+    if use_entropy:
+        candidate_re = re.compile(r"\b[A-Za-z0-9_\-\.~+/=]{18,}\b")
+        def _mask_entropy(m):
+            tok = m.group(0)
+            if any(c.isdigit() for c in tok) and any(c.isalpha() for c in tok):
+                if calculate_shannon_entropy(tok) >= 3.2:
+                    return replacement
+            return tok
+        result = candidate_re.sub(_mask_entropy, result)
+    return result
 
 def redact_api_keys(text: str) -> str:
     """Replace detected API keys and tokens with [REDACTED]."""
