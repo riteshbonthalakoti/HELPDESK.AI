@@ -20,6 +20,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from "../../components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "../../components/ui/card";
+import { AttachmentDropzone } from "../../components/AttachmentDropzone";
 import { Textarea } from "../../components/ui/textarea";
 import Tesseract from 'tesseract.js';
 import { translateText, SUPPORTED_LANGUAGES } from '../../services/translationService';
@@ -541,68 +542,25 @@ const CreateTicket = () => {
                                         </div>
                                     )}
 
-                                    {/* Screenshot Upload */}
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-bold text-gray-700">Screenshot (Optional)</label>
-
-                                        <AnimatePresence mode="wait">
-                                            {!imagePreview ? (
-                                                <motion.div
-                                                    key="dropzone"
-                                                    initial={{ opacity: 0 }}
-                                                    animate={{ opacity: 1 }}
-                                                    exit={{ opacity: 0 }}
-                                                    onDragOver={handleDragOver}
-                                                    onDrop={handleDrop}
-                                                    onClick={() => fileInputRef.current?.click()}
-                                                    className="group relative h-40 border-2 border-dashed border-gray-100 rounded-2xl bg-gray-50/50 hover:bg-emerald-50 hover:border-emerald-200 transition-all cursor-pointer flex flex-col items-center justify-center p-6"
-                                                >
-                                                    <input
-                                                        type="file"
-                                                        ref={fileInputRef}
-                                                        onChange={handleFileChange}
-                                                        accept="image/png, image/jpeg"
-                                                        className="hidden"
-                                                    />
-                                                    <div className="w-12 h-12 bg-white rounded-xl shadow-sm flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                                                        <Upload className="text-emerald-500" size={20} />
-                                                    </div>
-                                                    <p className="text-sm font-semibold text-gray-600">Drag and drop or click to upload</p>
-                                                    <p className="text-xs text-gray-400 mt-1">PNG or JPG up to 10MB</p>
-                                                </motion.div>
-                                            ) : (
-                                                <motion.div
-                                                    key="preview"
-                                                    initial={{ opacity: 0, scale: 0.95 }}
-                                                    animate={{ opacity: 1, scale: 1 }}
-                                                    className="relative rounded-2xl border border-gray-100 overflow-hidden bg-white p-4 items-center flex"
-                                                >
-                                                    <div className="flex items-center gap-4 w-full">
-                                                        <div className="w-20 h-20 rounded-xl overflow-hidden border border-gray-50 shadow-inner shrink-0">
-                                                            <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
-                                                        </div>
-                                                        <div className="flex-1 min-w-0">
-                                                            <p className="text-sm font-bold text-gray-900 truncate">{file?.name}</p>
-                                                            <p className="text-sm font-medium text-gray-600 mt-1">
-                                                                {(file?.size / 1024 / 1024).toFixed(2)} MB
-                                                                {isOcrLoading && " • Extracting text..."}
-                                                                {!isOcrLoading && extractedOCR && " • Text extracted"}
-                                                            </p>
-                                                        </div>
-                                                        <Button
-                                                            type="button"
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            onClick={removeFile}
-                                                            className="text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full shrink-0"
-                                                        >
-                                                            <X size={18} />
-                                                        </Button>
-                                                    </div>
-                                                </motion.div>
-                                            )}
-                                        </AnimatePresence>
-                                    </div>
+                                    {/* Attachment & Screenshot Dropzone Component */}
+                                    <AttachmentDropzone
+                                        file={file}
+                                        onFileSelect={(selectedFile) => {
+                                            if (imagePreview) URL.revokeObjectURL(imagePreview);
+                                            setFile(selectedFile);
+                                            if (selectedFile.type?.startsWith('image/')) {
+                                                setImagePreview(URL.createObjectURL(selectedFile));
+                                                void processOCR(selectedFile);
+                                            } else {
+                                                setImagePreview(null);
+                                                setExtractedOCR('');
+                                            }
+                                            setError('');
+                                        }}
+                                        onFileRemove={removeFile}
+                                        onError={(err) => setError(err)}
+                                        label="Attachment / Screenshot (Optional)"
+                                    />
 
                                     {/* Error Message */}
                                     {error && (
