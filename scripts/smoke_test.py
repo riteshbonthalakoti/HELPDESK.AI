@@ -1,18 +1,28 @@
 #!/usr/bin/env python3
 """
 Standalone smoke test: verifies the FastAPI app object can be imported
-without raising an unhandled exception.
+and probes live deployment endpoints (/health and /docs) with a cold-start
+retry loop and terminal progress spinner.
 
 Exit codes:
-  0 — import succeeded, app object instantiated correctly
-  1 — import failed
+  0 — all checks passed, endpoints healthy
+  1 — checks failed or cold boot timeout exceeded
 
 Usage:
-    python scripts/smoke_test.py
+  # Internal module import verification (CI mode)
+  python scripts/smoke_test.py
+
+  # Live endpoint verification with cold-start retry loop (Hugging Face / Web)
+  python scripts/smoke_test.py --url https://your-app.hf.space --timeout 60 --interval 5
 """
 
 import sys
 import os
+import time
+import argparse
+import urllib.request
+import urllib.error
+from typing import Optional, List, Tuple
 
 # Add project root to sys.path so `from backend.xxx import ...` works.
 _root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -21,21 +31,92 @@ if _root not in sys.path:
 
 # Required to allow degraded startup (no models on CI)
 os.environ.setdefault("ALLOW_DEGRADED_STARTUP", "1")
-# Prevent Supabase crash if no credentials in env
 os.environ.setdefault("SUPABASE_URL", "https://placeholder.supabase.co")
 os.environ.setdefault("SUPABASE_SERVICE_KEY", "placeholder_key")
 
+SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
 
-def run_smoke_test() -> bool:
-    """Attempt to import the FastAPI app and verify basic properties."""
+
+def check_endpoint(url: str, timeout: float = 10.0) -> Tuple[bool, int, str]:
+    """Probe a single HTTP endpoint, returning (is_ok, status_code, message)."""
+    req = urllib.request.Request(
+        url,
+        headers={"User-Agent": "HELPDESK-AI-SmokeTest/1.0"}
+    )
     try:
-        from fastapi import FastAPI  # noqa: F401 — verify FastAPI importable
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            status = resp.status
+            return (200 <= status < 400), status, "OK"
+    except urllib.error.HTTPError as exc:
+        return False, exc.code, f"HTTP Error {exc.code}"
+    except urllib.error.URLError as exc:
+        return False, 0, f"Connection Error: {exc.reason}"
+    except Exception as exc:
+        return False, 0, str(exc)
+
+
+def wait_for_cold_boot(
+    base_url: str,
+    timeout: float = 60.0,
+    interval: float = 5.0,
+    endpoints: Optional[List[str]] = None
+) -> bool:
+    """
+    Retry loop for waking up cold services (e.g. Hugging Face Spaces).
+    Monitors endpoints until healthy or timeout exceeded.
+    """
+    if endpoints is None:
+        endpoints = ["/health", "/docs"]
+
+    clean_base = base_url.rstrip("/")
+    start_time = time.time()
+    frame_idx = 0
+
+    print(f"[smoke_test] Starting cold-start monitoring for: {clean_base}")
+    print(f"[smoke_test] Target endpoints: {', '.join(endpoints)}")
+    print(f"[smoke_test] Max timeout: {timeout}s | Retry interval: {interval}s")
+
+    while True:
+        elapsed = time.time() - start_time
+        if elapsed > timeout:
+            print(f"\n[smoke_test] ❌ FAIL — Cold boot timeout exceeded ({elapsed:.1f}s > {timeout}s)")
+            return False
+
+        all_endpoints_healthy = True
+        failed_reasons = []
+
+        for ep in endpoints:
+            target_url = f"{clean_base}{ep}"
+            is_ok, status, msg = check_endpoint(target_url, timeout=min(interval, 10.0))
+            if not is_ok:
+                all_endpoints_healthy = False
+                failed_reasons.append(f"{ep}: {msg}")
+
+        if all_endpoints_healthy:
+            print(f"\n[smoke_test] ✅ PASS — Service woke up and all endpoints are healthy in {elapsed:.1f}s!")
+            return True
+
+        # Display terminal progress spinner
+        spinner = SPINNER_FRAMES[frame_idx % len(SPINNER_FRAMES)]
+        frame_idx += 1
+        reasons_summary = ", ".join(failed_reasons)
+        sys.stdout.write(
+            f"\r[smoke_test] {spinner} Waiting for cold boot... (elapsed: {elapsed:4.1f}s / {timeout:.0f}s) [{reasons_summary}]"
+        )
+        sys.stdout.flush()
+
+        time.sleep(interval)
+
+
+def run_import_smoke_test() -> bool:
+    """Attempt to import the FastAPI app and verify basic properties (CI fallback)."""
+    try:
+        from fastapi import FastAPI  # noqa: F401
         print("[smoke_test] FastAPI importable: OK")
     except ImportError as exc:
         print(f"[smoke_test] FAIL — FastAPI not importable: {exc}")
         return False
 
-    # Verify pydantic and dotenv work
     try:
         from pydantic import BaseModel  # noqa: F401
         from dotenv import load_dotenv  # noqa: F401
@@ -44,7 +125,6 @@ def run_smoke_test() -> bool:
         print(f"[smoke_test] FAIL — Missing core deps: {exc}")
         return False
 
-    # Attempt to import the backend services that don't require model files
     service_imports = [
         ("backend.services.auto_close_service", "AutoCloseService"),
         ("backend.services.duplicate_service", "DuplicateService"),
@@ -64,9 +144,7 @@ def run_smoke_test() -> bool:
                 print(f"[smoke_test] {module_path}.{attr}: OK")
         except Exception as exc:
             print(f"[smoke_test] WARN — {module_path}: {exc}")
-            # Don't fail entire smoke test for optional heavy-deps modules
 
-    # Final app import (may fail if torch/transformers not installed — that's acceptable in CI)
     try:
         from backend.main import app  # noqa: F401
         if not hasattr(app, "routes"):
@@ -81,8 +159,7 @@ def run_smoke_test() -> bool:
             else:
                 print(f"[smoke_test] Route {rp}: OK")
     except Exception as exc:
-        print(f"[smoke_test] WARN — backend.main import raised (likely missing model files): {exc}")
-        # This is acceptable in environments without ML models
+        print(f"[smoke_test] WARN — backend.main import raised: {exc}")
         print("[smoke_test] Partial PASS — core libraries importable; ML models not loaded (expected in CI)")
         return True
 
@@ -91,6 +168,52 @@ def run_smoke_test() -> bool:
     return all_ok
 
 
+def main():
+    parser = argparse.ArgumentParser(description="HELPDESK.AI Smoke Test & Cold-Start Retry Monitor")
+    parser.add_argument(
+        "--url",
+        type=str,
+        default=os.getenv("APP_URL") or os.getenv("BACKEND_URL") or os.getenv("HF_SPACE_URL"),
+        help="Target base URL to monitor for cold boot (default: env APP_URL / BACKEND_URL)"
+    )
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=float(os.getenv("SMOKE_TIMEOUT", "60.0")),
+        help="Maximum seconds to wait for cold boot (default: 60s)"
+    )
+    parser.add_argument(
+        "--interval",
+        type=float,
+        default=float(os.getenv("SMOKE_INTERVAL", "5.0")),
+        help="Retry interval in seconds between polls (default: 5s)"
+    )
+    parser.add_argument(
+        "--skip-import",
+        action="store_true",
+        help="Skip local module import tests when running in remote mode"
+    )
+
+    args = parser.parse_args()
+
+    overall_success = True
+
+    if not args.skip_import:
+        import_success = run_import_smoke_test()
+        if not import_success:
+            overall_success = False
+
+    if args.url:
+        http_success = wait_for_cold_boot(
+            base_url=args.url,
+            timeout=args.timeout,
+            interval=args.interval
+        )
+        if not http_success:
+            overall_success = False
+
+    sys.exit(0 if overall_success else 1)
+
+
 if __name__ == "__main__":
-    success = run_smoke_test()
-    sys.exit(0 if success else 1)
+    main()
