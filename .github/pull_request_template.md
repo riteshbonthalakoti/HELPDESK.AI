@@ -24,10 +24,6 @@ Fixes #
 
 Please verify before requesting maintainer review:
 
-- [ ] ⭐ I have starred the repository: [riteshbonthalakoti/HELPDESK.AI](https://github.com/riteshbonthalakoti/HELPDESK.AI)
-- [ ] 👤 I have followed the project maintainer: [@riteshbonthalakoti](https://github.com/riteshbonthalakoti)
-- [ ] 🍴 I have forked the repository
-- [ ] 🖥️ I have registered on the test app ([https://helpdeskaiv1.vercel.app/signup](https://helpdeskaiv1.vercel.app/signup)) under **Employee Signup** with company **RITESH PVT LTD**
 - [ ] 🎯 I was assigned to this issue prior to opening this PR
 - [ ] 🌿 My PR targets the `gssoc` branch
 - [ ] 🚫 My code contains no `console.log`, temporary debug `print()`, or leftover commented blocks

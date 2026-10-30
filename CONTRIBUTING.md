@@ -56,21 +56,14 @@ We are proudly participating in **GSSoC 2026**! To ensure seamless collaboration
     git checkout -b fix/issue-123-short-description
     ```
 
-### 📋 2. Contributor Onboarding Checklist
-Before requesting an issue or opening a PR, complete these 4 onboarding steps:
-1.  ⭐ **Star this repository**: [Star HELPDESK.AI](https://github.com/riteshbonthalakoti/HELPDESK.AI)
-2.  👤 **Follow the Project Admin**: [Follow @riteshbonthalakoti](https://github.com/riteshbonthalakoti) (Mandatory for automated point audit validation)
-3.  🍴 **Fork this repository**: [Fork HELPDESK.AI](https://github.com/riteshbonthalakoti/HELPDESK.AI/fork)
-4.  🖥️ **Employee Testing Registration**: Open the live application at [https://helpdeskaiv1.vercel.app/signup](https://helpdeskaiv1.vercel.app/signup). Click **Employee Signup** (do NOT use Company Registration) and select **RITESH PVT LTD** from the company dropdown.
-
-### 🎯 3. Issue Assignment Workflow
+### 🎯 2. Issue Assignment Workflow
 *   **Do not start work without prior assignment.** Unassigned PRs will be closed without review.
 *   Find an open issue with the label `gssoc` or `gssoc:approved`.
-*   Comment on the issue: `@riteshbonthalakoti please assign this to me under GSSoC 2026. I have completed the onboarding steps.` Include a concise 2-sentence implementation plan.
+*   Comment on the issue: `@riteshbonthalakoti please assign this to me under GSSoC 2026.` Include a concise 2-sentence implementation plan.
 *   Issues are assigned chronologically to the first contributor who provides a solid plan.
 *   **One issue per PR.** Do not bundle multiple unrelated features or bug fixes into a single pull request.
 
-### 🏆 4. Scoring Formula & Review Matrix
+### 🏆 3. Scoring Formula & Review Matrix
 Points are credited upon PR merge based on our standardized scoring rubric:
 
 $$\text{PR Score} = 50 + (\text{Difficulty Pts} \times \text{Quality Multiplier}) + \text{Type Bonus}$$
@@ -212,7 +205,6 @@ npx expo start
 1.  **DCO Sign-Off**: Sign off your commits using `git commit -s -m "type: descriptive message"`.
 2.  **Verify Branch**: Double-check that your PR compares your feature branch against `riteshbonthalakoti:gssoc`.
 3.  **Fill the PR Template**: Detail the root cause, changes made, issue fixed (`Fixes #<number>`), and testing screenshots.
-4.  **Confirm Onboarding**: Check all onboarding verification items in the checklist.
 5.  **Monitor CI**: Ensure all GitHub Actions checks pass green before requesting maintainer review.
 
 ---

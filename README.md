@@ -70,22 +70,6 @@ To support the project and get real-time open-source project updates, please mak
 
 <div align="center">
 
-<h3> 🚀 Support the Orchestrator in 3 Seconds! </h3>
-
-<a href="https://github.com/riteshbonthalakoti/HELPDESK.AI">
-  <img src="https://img.shields.io/badge/⭐_STAR_REPOSITORY-111827?style=for-the-badge&logo=github&logoColor=white&labelColor=e5a50a" height="40" alt="Star Repository" />
-</a>
-&nbsp;&nbsp;
-<a href="https://github.com/riteshbonthalakoti/HELPDESK.AI/fork">
-  <img src="https://img.shields.io/badge/🍴_FORK_REPOSITORY-111827?style=for-the-badge&logo=git&logoColor=white&labelColor=238636" height="40" alt="Fork Repository" />
-</a>
-&nbsp;&nbsp;
-<a href="https://github.com/riteshbonthalakoti">
-  <img src="https://img.shields.io/badge/👤_FOLLOW_OWNER-111827?style=for-the-badge&logo=github&logoColor=white&labelColor=586069" height="40" alt="Follow Owner" />
-</a>
-
-<br/><br/>
-
 <h3> 💼 Let's Connect and Collaborate! </h3>
 
 <a href="https://www.linkedin.com/in/ritesh1908/">
