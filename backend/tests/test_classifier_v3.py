@@ -1,12 +1,26 @@
 # backend/tests/test_classifier_v3.py
 
-import pytest
 import sys
+
+# Ensure site-packages libraries are loaded if present (bypassing repo root shims)
+orig_path = list(sys.path)
+clean_path = [p for p in orig_path if p not in ('', '.') and not str(p).endswith('HELPDESK_AI')]
+sys.path = clean_path
+try:
+    import numpy  # noqa: F401
+    import torch  # noqa: F401
+    import torch.nn  # noqa: F401
+    import transformers  # noqa: F401
+except Exception:
+    pass
+finally:
+    sys.path = orig_path
+
+import pytest
 from unittest.mock import patch, MagicMock, PropertyMock
 
 # ---------------------------------------------------------------------------
-# Stub torch / transformers BEFORE importing the service so the module
-# doesn't crash in CI where the real packages may not be installed.
+# Fallback stubs for CI where packages might not be installed
 # ---------------------------------------------------------------------------
 if "torch" not in sys.modules:
     sys.modules["torch"] = MagicMock()
@@ -15,7 +29,7 @@ if "torch.nn" not in sys.modules:
 if "transformers" not in sys.modules:
     sys.modules["transformers"] = MagicMock()
 
-# Force a fresh import with our stubs in place
+# Force a fresh import with our stubs/packages in place
 if "backend.services.classifier_v3" in sys.modules:
     del sys.modules["backend.services.classifier_v3"]
 
