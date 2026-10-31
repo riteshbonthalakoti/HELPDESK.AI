@@ -833,6 +833,47 @@ async def get_tickets(user: dict = Depends(get_current_user), company_id: str | 
     return res.data
 
 
+@app.get("/tickets/export/csv")
+async def export_tickets_csv(
+    user: dict = Depends(get_current_user),
+    company_id: str | None = None,
+):
+    """
+    Stream persistent tickets as a downloadable CSV for admin audits (issue #3901).
+
+    Data is fetched from Supabase in bounded batches and serialized
+    incrementally, so large exports stream to the client without loading the
+    full dataset into memory. Cell values are sanitized against CSV
+    formula-injection payloads.
+    """
+    from backend.services.csv_exporter import stream_tickets_csv
+
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Database connection not initialized")
+
+    user_company_id = await get_user_company_id(user)
+    if company_id and company_id != user_company_id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this tenant")
+
+    target_company = user_company_id
+
+    def fetch_batch(offset: int, batch_size: int):
+        query = supabase.table("tickets").select("*").order("created_at", desc=True)
+        if target_company:
+            query = query.eq("company_id", target_company)
+        res = query.range(offset, offset + batch_size - 1).execute()
+        return res.data or []
+
+    return StreamingResponse(
+        stream_tickets_csv(fetch_batch),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": 'attachment; filename="tickets_export.csv"',
+            "Cache-Control": "no-store",
+        },
+    )
+
+
 @app.post("/tickets/save")
 async def save_ticket(request_body: TicketSaveRequest):
     """OFFICIAL PERSISTENCE: Saves the analyzed ticket to Supabase."""
