@@ -14,6 +14,7 @@ import { Select } from "../../components/ui/select";
 import TicketChat from "../../components/shared/TicketChat";
 import { formatTicketId } from "../../utils/format";
 import SLABadge from "../components/SLABadge";
+import SLATargetClock from "../components/SLATargetClock";
 import { formatFullTimestamp } from "../../utils/dateUtils";
 import TicketTimeline from "../../user/components/TicketTimeline";
 
@@ -237,7 +238,7 @@ const AdminTicketDetail = () => {
                             <span style={{ fontSize: '10px', fontWeight: 700, color: '#475569', background: '#f1f5f9', padding: '2px 8px', borderRadius: '100px', textTransform: 'uppercase' }}>
                                 {ticket.assignee?.full_name || 'UNASSIGNED'}
                             </span>
-                            <SLABadge priority={displayPriority} createdAt={ticket.created_at} status={displayStatus} compact />
+                            <SLATargetClock priority={displayPriority} createdAt={ticket.created_at} status={displayStatus} variant="compact" />
                         </div>
                     </div>
                 </div>
@@ -382,6 +383,15 @@ const AdminTicketDetail = () => {
                                     </div>
                                 </div>
                             </div>
+
+                            {/* Visual Target Clock Instrument */}
+                            <SLATargetClock
+                                createdAt={ticket.created_at}
+                                priority={displayPriority}
+                                status={displayStatus}
+                                variant="dial"
+                                className="mb-4"
+                            />
 
                             <div className="space-y-2">
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

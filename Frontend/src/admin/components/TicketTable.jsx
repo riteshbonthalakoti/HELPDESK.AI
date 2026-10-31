@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShieldCheck, Clock, ExternalLink } from 'lucide-react';
 import { formatTimelineDate } from '../../utils/dateUtils';
+import SLATargetClock from './SLATargetClock';
 
 const categoryDotColors = {
     'Hardware': '#f97316',
@@ -59,7 +60,7 @@ const TicketTable = ({ tickets = [], isLoading = false, limit = null }) => {
             <table className="w-full border-collapse">
                 <thead>
                     <tr style={{ background: '#f8faf9', borderBottom: '1px solid #f0fdf4' }}>
-                        {['Ticket ID', 'Ticket Info', 'Category', 'Priority', 'Assigned Team', 'Status'].map((h, i) => (
+                        {['Ticket ID', 'Ticket Info', 'Category', 'Priority', 'Assigned Team', 'SLA Target', 'Status'].map((h, i) => (
                             <th key={i} style={{ padding: '14px 24px', textAlign: 'left', fontSize: '10px', color: '#9ca3af', letterSpacing: '0.1em', fontWeight: 600, textTransform: 'uppercase' }}>{h}</th>
                         ))}
                     </tr>
@@ -166,6 +167,16 @@ const TicketTable = ({ tickets = [], isLoading = false, limit = null }) => {
                                         </div>
                                         <span style={{ fontSize: '12px', fontWeight: 500, color: '#374151', whiteSpace: 'nowrap' }}>{effectiveTeam}</span>
                                     </div>
+                                </td>
+
+                                {/* SLA Target Countdown */}
+                                <td style={{ padding: '14px 24px' }}>
+                                    <SLATargetClock
+                                        createdAt={ticket.created_at || ticket.createdAt || ticket.timestamp}
+                                        priority={effectivePriority}
+                                        status={ticket.status}
+                                        variant="compact"
+                                    />
                                 </td>
 
                                 {/* Status */}
