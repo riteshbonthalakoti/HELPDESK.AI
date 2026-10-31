@@ -332,3 +332,20 @@ class TestGetRoute:
         from services.notification_routing import get_route
         assert get_route(None) == 'Email'
 
+    def test_get_route_urgent_escalation(self):
+        from services.notification_routing import get_route
+        assert get_route('urgent') == 'On-Call Paging Channel'
+        assert get_route('CRITICAL') == 'On-Call Paging Channel'
+
+    def test_get_route_category_routing(self):
+        from services.notification_routing import get_route
+        assert get_route(priority='low', category='billing') == 'Finance Support Team'
+        assert get_route(priority=None, category='security') == 'Security Operations Center'
+        assert get_route(priority='low', category='infrastructure') == 'DevOps On-Call'
+        assert get_route(category='hardware') == 'IT Service Desk'
+
+    def test_get_route_unknown_category_fallback(self):
+        from services.notification_routing import get_route
+        assert get_route(category='unknown_custom_service') == 'Email'
+        assert get_route(priority=None, category=None, company_id=None) == 'Email'
+
