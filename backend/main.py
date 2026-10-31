@@ -88,6 +88,10 @@ from backend.services.classifier_v3 import classifier_v3  # V3 Power Model
 from backend.services.ner_service import NERService
 from backend.services.duplicate_service import DuplicateService
 from backend.services.rag_service import RagService
+from backend.logging_config import setup_logging
+
+# Configure structured JSON logging for observability (issue #3905)
+setup_logging()
 
 
 # ---------------------------------------------------------------------------
