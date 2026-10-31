@@ -13,6 +13,7 @@ import traceback
 import warnings
 import logging
 import hashlib
+from typing import Optional, Dict, List, Any
 from contextlib import asynccontextmanager
 from backend.middleware.security_middleware import SecurityHeadersMiddleware
 
