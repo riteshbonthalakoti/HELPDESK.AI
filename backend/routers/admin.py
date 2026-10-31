@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from backend.services.privilege_audit_service import PrivilegeAuditService
 from fastapi.responses import StreamingResponse
 import io
 import csv
@@ -29,18 +30,71 @@ async def api_get_profiles(
 async def api_update_profile(
     user_id: str,
     updates: ProfileUpdate,
+    request: Request = None,
     current_user: dict = Depends(get_current_user),
 ):
-    """Apply an admin edit to a user profile."""
+    """Apply an admin edit to a user profile and record privilege elevation audit logs."""
     if not supabase: return {}
-    # Schema validation in ProfileUpdate (extra="forbid") already blocks
-    # any field outside the allowlist, so a Pydantic .model_dump() with
-    # exclude_unset=True gives us only what the client actually sent.
     payload = updates.model_dump(exclude_unset=True)
     if not payload:
         return {}
+
+    # Retrieve existing role for privilege access elevation auditing
+    old_role = None
+    target_email = None
+    target_company = None
+    if "role" in payload:
+        try:
+            curr_res = supabase.table("profiles").select("role, email, company_id").eq("id", user_id).single().execute()
+            if curr_res.data:
+                old_role = curr_res.data.get("role")
+                target_email = curr_res.data.get("email")
+                target_company = curr_res.data.get("company_id")
+        except Exception:
+            pass
+
     res = supabase.table("profiles").update(payload).eq("id", user_id).execute()
+
+    # Record privilege elevation audit record
+    if "role" in payload and res.data:
+        new_role = payload.get("role")
+        if old_role != new_role:
+            try:
+                audit_svc = PrivilegeAuditService(supabase)
+                operator_id = current_user.get("id") or current_user.get("sub") or "admin"
+                operator_email = current_user.get("email")
+                ip_addr = request.client.host if request and request.client else None
+                audit_svc.record_privilege_elevation(
+                    operator_id=operator_id,
+                    target_user_id=user_id,
+                    old_role=old_role or "user",
+                    new_role=new_role,
+                    operator_email=operator_email,
+                    target_user_email=target_email,
+                    company_id=target_company or current_user.get("company_id"),
+                    ip_address=ip_addr,
+                )
+            except Exception:
+                pass
+
     return res.data[0] if res.data else {}
+
+
+@router.get("/audit/privilege-elevations")
+async def api_get_privilege_elevations(
+    target_user_id: str = None,
+    limit: int = 50,
+    current_user: dict = Depends(get_current_user),
+):
+    """Retrieve security audit records for privilege access elevations."""
+    if not supabase: return []
+    audit_svc = PrivilegeAuditService(supabase)
+    company_id = current_user.get("company_id")
+    return audit_svc.get_privilege_audit_logs(
+        company_id=company_id,
+        target_user_id=target_user_id,
+        limit=limit
+    )
 
 @router.delete("/profiles/{user_id}")
 async def api_delete_profile(
