@@ -27,7 +27,7 @@ class GeminiService:
         else:
             print("[GeminiService] WARNING: GEMINI_API_KEY not found in environment.")
 
-    def analyze_image(self, image_base64: str) -> dict:
+    def analyze_image(self, image_base64: str, text: str = "") -> dict:
         """
         Perform OCR and image analysis using Gemini logic.
         """
@@ -77,6 +77,109 @@ class GeminiService:
                 "image_description": f"Error analyzing image: {str(e)}",
                 "ocr_text": "",
                 "detected_problem": ""
+            }
+
+    def diagnose_screenshot(self, image_base64: str, text: str = "") -> dict:
+        """
+        Analyze screenshot attachments and extract structured multi-modal diagnostics:
+        - detected_application: string (e.g. 'Outlook', 'Windows Terminal', 'BSOD')
+        - error_code: string | null (e.g. '0x0000007B', 'ERR_CONNECTION_REFUSED', None)
+        - root_cause_hypothesis: string
+        - recommended_remediation: string
+        - status: string ('success', 'degraded', 'error', 'invalid_input')
+        """
+        fallback_result = {
+            "detected_application": "Unknown Application",
+            "error_code": None,
+            "root_cause_hypothesis": "AI Vision diagnostics unavailable (API key missing or disconnected).",
+            "recommended_remediation": "Review system logs or submit textual details of the error.",
+            "status": "degraded"
+        }
+
+        if not self._initialized or not getattr(self, "client", None):
+            return fallback_result
+
+        if not image_base64 or not str(image_base64).strip():
+            return {
+                "detected_application": "None",
+                "error_code": None,
+                "root_cause_hypothesis": "No image payload provided for vision diagnostics.",
+                "recommended_remediation": "Attach a valid PNG or JPEG screenshot for vision inspection.",
+                "status": "invalid_input"
+            }
+
+        try:
+            clean_b64 = image_base64
+            if "," in clean_b64:
+                clean_b64 = clean_b64.split(",", 1)[1]
+
+            image_bytes = base64.b64decode(clean_b64)
+            img = Image.open(io.BytesIO(image_bytes))
+
+            prompt = (
+                "You are an expert IT Tier 3 Support and Diagnostics Engineer inspecting a user screenshot.\n"
+                "Analyze the screenshot (UI modals, terminal windows, application crashes, dialogs, BSOD, or system tray alerts).\n"
+                f"{f'User Context: {text}' if text else ''}\n"
+                "Return a strict JSON object with EXACTLY the following keys:\n"
+                "{\n"
+                '  "detected_application": "<name of the foreground application or OS screen>",\n'
+                '  "error_code": "<specific error code or hex identifier like 0x80070005, or null if none>",\n'
+                '  "root_cause_hypothesis": "<concise explanation of why this error or crash occurred>",\n'
+                '  "recommended_remediation": "<actionable step-by-step fix or troubleshooting guidance>"\n'
+                "}\n"
+                "Do not include markdown code fence formatting. Return raw JSON only."
+            )
+
+            vision_model = os.getenv("GEMINI_VISION_MODEL", "gemini-1.5-flash")
+            try:
+                response = self.client.models.generate_content(
+                    model=vision_model,
+                    contents=[prompt, img]
+                )
+            except Exception:
+                response = self.client.models.generate_content(
+                    model=self.model_name,
+                    contents=[prompt, img]
+                )
+
+            text_response = (response.text or "").strip()
+
+            if text_response.startswith("```"):
+                text_response = re.sub(r"^```(?:json)?\s*", "", text_response)
+                text_response = re.sub(r"\s*```$", "", text_response)
+
+            import json
+            try:
+                parsed = json.loads(text_response)
+                return {
+                    "detected_application": parsed.get("detected_application") or "General System",
+                    "error_code": parsed.get("error_code"),
+                    "root_cause_hypothesis": parsed.get("root_cause_hypothesis") or "Application error identified in UI.",
+                    "recommended_remediation": parsed.get("recommended_remediation") or "Restart application and check connection.",
+                    "status": "success"
+                }
+            except json.JSONDecodeError:
+                app_match = re.search(r'"detected_application"\s*:\s*"([^"]+)"', text_response)
+                code_match = re.search(r'"error_code"\s*:\s*(?:"([^"]+)"|(null))', text_response)
+                rc_match = re.search(r'"root_cause_hypothesis"\s*:\s*"([^"]+)"', text_response)
+                rem_match = re.search(r'"recommended_remediation"\s*:\s*"([^"]+)"', text_response)
+
+                return {
+                    "detected_application": app_match.group(1) if app_match else "Detected in Screenshot",
+                    "error_code": None if (not code_match or code_match.group(2) == "null") else code_match.group(1),
+                    "root_cause_hypothesis": rc_match.group(1) if rc_match else text_response[:200],
+                    "recommended_remediation": rem_match.group(1) if rem_match else "Verify system environment and dependencies.",
+                    "status": "partial_json_recovered"
+                }
+
+        except Exception as e:
+            print(f"[GeminiService] Vision Diagnostics Error: {e}")
+            return {
+                "detected_application": "Unknown (Analysis Error)",
+                "error_code": None,
+                "root_cause_hypothesis": f"Diagnostics failed: {str(e)}",
+                "recommended_remediation": "Manual technical review required.",
+                "status": "error"
             }
 
     def get_summary(self, ticket_text: str) -> str:

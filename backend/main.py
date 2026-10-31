@@ -1077,6 +1077,12 @@ async def analyze_only(request_body: TicketRequest):
         except Exception as e:
             print(f"[VISION ERROR] {e}")
 
+    if request_body.image_base64 and gemini_service and hasattr(gemini_service, "diagnose_screenshot"):
+        try:
+            env_metadata["vision_diagnostics"] = gemini_service.diagnose_screenshot(request_body.image_base64, text)
+        except Exception as e:
+            print(f"[VISION DIAGNOSTICS WARNING] {e}")
+
     summary = text[:100] + ("…" if len(text) > 100 else "")
 
     # --- Classification ---

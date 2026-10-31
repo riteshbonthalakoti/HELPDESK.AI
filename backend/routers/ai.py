@@ -277,6 +277,14 @@ async def analyze_only(request_body: TicketRequest, user: dict = Depends(get_cur
         except Exception as e:
             print(f"[VISION ERROR] {e}")
 
+    # Multi-modal Vision Diagnostics (Issue #4114)
+    if request_body.image_base64 and hasattr(gemini_service, "diagnose_screenshot"):
+        try:
+            vision_diag = gemini_service.diagnose_screenshot(request_body.image_base64, text)
+            env_metadata["vision_diagnostics"] = vision_diag
+        except Exception as e:
+            print(f"[VISION DIAGNOSTICS WARNING] {e}")
+
     summary = text[:100] + ("…" if len(text) > 100 else "") 
 
     # --- Classification ---
@@ -441,6 +449,13 @@ async def analyze_stream(request_body: TicketRequest, user: dict = Depends(get_c
                 vision_result = gemini_service.analyze_image(request_body.image_base64, text)
                 gemini_analysis.update(vision_result)
             except Exception as e:
+                pass
+
+        if request_body.image_base64 and hasattr(gemini_service, "diagnose_screenshot"):
+            try:
+                vision_diag = gemini_service.diagnose_screenshot(request_body.image_base64, text)
+                env_metadata["vision_diagnostics"] = vision_diag
+            except Exception:
                 pass
 
         summary = text[:100] + ("…" if len(text) > 100 else "") 
