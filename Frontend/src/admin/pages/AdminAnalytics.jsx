@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { supabase } from "../../lib/supabaseClient";
 import StatCard from '../components/StatCard';
+import PerformanceResolutionChart from '../components/PerformanceResolutionChart';
 import { Card, CardContent } from "../../components/ui/card";
 import useAuthStore from "../../store/authStore";
 import { formatTimelineDate } from "../../utils/dateUtils";
@@ -258,6 +259,9 @@ const AdminAnalytics = () => {
                             )}
                         </div>
                     </div>
+
+                    {/* Interactive Performance Resolution by Weekday Ranges Chart */}
+                    <PerformanceResolutionChart tickets={tickets} />
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                         {/* Resolution Split Chart */}
