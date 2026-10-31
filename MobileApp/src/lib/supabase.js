@@ -2,7 +2,7 @@ import 'react-native-url-polyfill/auto';
 import { createClient } from '@supabase/supabase-js';
 import * as SecureStore from 'expo-secure-store';
 
-const ExpoSecureStoreAdapter = {
+export const ExpoSecureStoreAdapter = {
   getItem: (key) => {
     return SecureStore.getItemAsync(key);
   },
