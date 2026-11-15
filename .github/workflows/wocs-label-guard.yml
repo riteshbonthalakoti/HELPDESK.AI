@@ -1,0 +1,56 @@
+name: WOCS Point Guard & Label Verification
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+jobs:
+  verify-wocs-labels:
+    name: Verify WOCS Point Tracking Labels
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate Labels
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const labels = (pr.labels || []).map(l => l.name);
+            console.log(`Evaluating PR #${pr.number}: "${pr.title}"`);
+            console.log('Current Labels:', labels);
+
+            const hasWocs = labels.includes('wocs');
+            const validLevels = ['level 1', 'level 2', 'level 3'];
+            const assignedLevels = labels.filter(l => validLevels.includes(l));
+
+            // Check if PR title, body, or existing labels indicate WOCS
+            const isWocsCandidate = hasWocs || 
+                                    assignedLevels.length > 0 || 
+                                    (pr.title && pr.title.toLowerCase().includes('wocs')) ||
+                                    (pr.body && pr.body.toLowerCase().includes('wocs'));
+
+            if (!isWocsCandidate) {
+              console.log('PR is not tagged for Winter of Code Social (WOCS). Point guard check bypassed.');
+              return;
+            }
+
+            let errors = [];
+
+            if (!hasWocs) {
+              errors.push("- Missing required 'wocs' label.");
+            }
+
+            if (assignedLevels.length === 0) {
+              errors.push("- Missing difficulty level label: Must have exactly one of ['level 1', 'level 2', 'level 3'].");
+            } else if (assignedLevels.length > 1) {
+              errors.push(`- Ambiguous difficulty: Multiple levels found [${assignedLevels.join(', ')}]. Exactly one level is permitted.`);
+            }
+
+            if (errors.length > 0) {
+              const errorMessage = `⚠️ WOCS Point Guard Check Failed:\n\n` +
+                                   errors.join('\n') +
+                                   `\n\nTo ensure contributor points are captured by the Code Social Railway webhook, ` +
+                                   `maintainers must add the required labels BEFORE merging.`;
+              core.setFailed(errorMessage);
+            } else {
+              console.log(`✅ WOCS Point Guard Passed! Verified labels: ['wocs', '${assignedLevels[0]}']. Webhook will award points upon merge.`);
+            }

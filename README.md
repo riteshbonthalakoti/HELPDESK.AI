@@ -18,10 +18,14 @@ pinned: false
 
 <br/>
 
+<a href="https://woc.codesocial.tech/">
+<img src="https://img.shields.io/badge/Winter_of_Code_Social-2026-0052cc?style=for-the-badge&logoColor=white" height="42" alt="WOCS 2026">
+</a>
+&nbsp;&nbsp;
 <img src="https://img.shields.io/badge/GirlScript_Summer_Of_Code-2026-F37021?style=for-the-badge&logo=girlscript&logoColor=white" height="42" alt="GSSoC 2026">
 &nbsp;&nbsp;
-<a href="https://github.com/riteshbonthalakoti/HELPDESK.AI/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22">
-<img src="https://img.shields.io/badge/Good_First_Issues-Available-10B981?style=for-the-badge&logo=github&logoColor=white" height="42" alt="Good First Issues">
+<a href="https://github.com/riteshbonthalakoti/HELPDESK.AI/issues?q=is%3Aissue+is%3Aopen+label%3A%22wocs%22">
+<img src="https://img.shields.io/badge/WOCS_Issues-Available-0052cc?style=for-the-badge&logo=github&logoColor=white" height="42" alt="WOCS Issues">
 </a>
 
 <br/><br/>
@@ -59,6 +63,34 @@ pinned: false
 
 <br/><br/>
 </div>
+
+---
+
+## ❄️ Winter of Code Social (WOCS 2026) Campaign & Guidelines
+
+We are officially selected and featured in **Winter of Code Social (WOCS) 2026**! 🚀
+
+- 🌐 **WOCS Project Listing**: [woc.codesocial.tech/projects](https://woc.codesocial.tech/projects)
+- 📊 **Live Leaderboard**: [woc.codesocial.tech/leaderboard](https://woc.codesocial.tech/leaderboard)
+- 💬 **Discord Forum**: Join the Code Social Discord and visit our project thread under `#find-a-project`.
+
+### 🏆 Point Scoring Matrix (WOCS Automated Webhook Tracking)
+All eligible PRs are automatically tracked via the WOCS Railway webhook upon merge when tagged with the required labels:
+
+| Label | Points Awarded | Scope & Difficulty |
+| :--- | :--- | :--- |
+| `level 1` | **2 Points** | Documentation, typo fixes, beginner-friendly starter tasks |
+| `level 2` | **5 Points** | Moderate bug fixes, frontend/backend enhancements, automated test coverage |
+| `level 3` | **11 Points** | Complex full-stack features, AI model integrations, architecture overhauls |
+
+> [!IMPORTANT]
+> **Label Integrity**: Every PR must be labeled with `wocs` AND exactly one difficulty level (`level 1`, `level 2`, or `level 3`) in lowercase before merging to be counted on the leaderboard.
+
+### 🤖 Official AI Contribution Policy
+Per WOCS guidelines, repository maintainers define the AI policy:
+- **AI-Assisted Contributions are Welcome**: You are encouraged to utilize modern AI developer tools (GitHub Copilot, ChatGPT, Claude, Antigravity) to explore our architecture, formulate solutions, and generate robust test suites.
+- **Strict Quality Standard**: Automated copy-pasting of hallucinated code or mass spam is strictly banned. Contributors must thoroughly test changes locally and be able to explain their PR.
+- **Transparency**: Note any substantial AI assistance in your PR description.
 
 ---
 

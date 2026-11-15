@@ -41,6 +41,44 @@ HELPDESK.AI was conceived and built during the **Infosys Springboard Virtual Int
 
 ---
 
+## ❄️ Winter of Code Social (WOCS 2026) Guidelines
+
+We are an official participating project in **Winter of Code Social 2026**! To ensure seamless collaboration, automated point tracking, and fair evaluation, all contributors must strictly adhere to the following workflow:
+
+### 🚨 1. Target Branch Requirement
+* **All WOCS Pull Requests MUST target the `main` branch.**
+* When cloning and branching, always branch off `main`:
+  ```bash
+  git clone https://github.com/riteshbonthalakoti/HELPDESK.AI.git
+  cd HELPDESK.AI
+  git checkout -b fix/issue-123-short-description
+  ```
+
+### 🎯 2. Issue Assignment Workflow
+* **Do not start work without prior assignment.** Unassigned PRs will be closed without review.
+* Find an open issue with the label `wocs`.
+* Comment on the issue: `@riteshbonthalakoti please assign this to me under WOCS 2026.` Include a concise 2-sentence implementation plan.
+* **One issue per PR.** Do not bundle multiple unrelated features or bug fixes into a single pull request.
+
+### 🏆 3. Scoring & Automated Tracking
+Points are tracked automatically by the WOCS Railway webhook upon PR merge based on GitHub labels:
+
+| Label | Points | Criteria |
+| :--- | :--- | :--- |
+| `level 1` | 2 pts | Minor fixes, documentation, typo corrections, setup guides |
+| `level 2` | 5 pts | Feature additions, component optimizations, test suites, bug fixes |
+| `level 3` | 11 pts | Complex architectural implementations, AI/ML integrations, major modules |
+
+> [!CAUTION]
+> Both `wocs` AND a level label (`level 1`, `level 2`, or `level 3`) must be attached to your PR **before merge**. If a PR is merged without these labels, points cannot be counted retroactively.
+
+### 🤖 4. AI Tooling Policy
+* **AI-Assisted Contributions are Allowed**: You may use GitHub Copilot, ChatGPT, Claude, Antigravity, etc., to explore code, brainstorm approaches, and write tests.
+* **Quality & Accountability**: You are responsible for every line of code submitted. Hallucinated APIs, broken imports, or non-functional code will result in your PR being closed.
+* **Explanation**: You must be prepared to answer review questions about your code implementation.
+
+---
+
 ## 🌟 GirlScript Summer of Code (GSSoC 2026) Guidelines
 
 We are proudly participating in **GSSoC 2026**! To ensure seamless collaboration, automated point tracking, and fair evaluation, all contributors must strictly adhere to the following workflow:
