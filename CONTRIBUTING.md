@@ -54,10 +54,17 @@ We are an official participating project in **Winter of Code Social 2026**! To e
   git checkout -b fix/issue-123-short-description
   ```
 
-### 🎯 2. Issue Assignment Workflow
+### 🎯 2. Issue Assignment Workflow & 1-Issue-Per-Contributor Rule
+* **Strict Policy: 1 Active Issue per Contributor.** To ensure fair opportunities for everyone across WOCS 2026, **an individual contributor can only have ONE assigned issue at any given time**. Do not attempt to claim multiple issues simultaneously.
+* **Sequential Assignment:** You may only claim a 2nd issue after your 1st assigned issue has been completed, reviewed, and merged (or officially closed).
+* **Parallel Availability for Others:** While you are working on your assigned issue, all other open issues remain available for other community contributors to claim and be assigned.
 * **Do not start work without prior assignment.** Unassigned PRs will be closed without review.
-* Find an open issue with the label `wocs`.
-* Comment on the issue: `@riteshbonthalakoti please assign this to me under WOCS 2026.` Include a concise 2-sentence implementation plan.
+* **Contributor Onboarding Checklist:** Before claiming, ensure you have:
+  1. Starred this repository.
+  2. Followed the Project Admin [@riteshbonthalakoti](https://github.com/riteshbonthalakoti).
+  3. Forked the repository to your profile.
+  4. Registered for an employee test account under company **RITESH PVT LTD** on the [Live Portal](https://helpdeskaiv1.vercel.app/signup).
+* Comment on the issue: `/claim` along with a concise 2-sentence implementation plan.
 * **One issue per PR.** Do not bundle multiple unrelated features or bug fixes into a single pull request.
 
 ### 🏆 3. Scoring & Automated Tracking
