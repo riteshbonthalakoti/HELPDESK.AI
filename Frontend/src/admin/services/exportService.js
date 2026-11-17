@@ -218,3 +218,60 @@ function triggerDownload(blob, filename) {
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
 }
+
+
+function getExportTicketData(ticket) {
+  return {
+    ticket_id: ticket.id || '',
+    priority: ticket.correction?.corrected_priority || ticket.priority || '',
+    status: ticket.status || '',
+    category: ticket.correction?.corrected_category || ticket.category || '',
+    resolved_at: formatDateForCsv(
+      ticket.resolved_at || ticket.metadata?.resolved_at
+    ) || null,
+  };
+}
+
+export function exportTicketsToJSON(tickets, filename = 'tickets-export.json') {
+  if (!tickets || tickets.length === 0) {
+    throw new Error('No tickets to export');
+  }
+
+  const json = JSON.stringify(tickets.map(getExportTicketData), null, 2);
+  const blob = new Blob([json], { type: 'application/json;charset=utf-8;' });
+
+  triggerDownload(blob, filename);
+  return { count: tickets.length, filename };
+}
+
+export function exportTicketsToMarkdown(tickets, filename = 'tickets-export.md') {
+  if (!tickets || tickets.length === 0) {
+    throw new Error('No tickets to export');
+  }
+
+  const escapeMarkdown = (value) =>
+    String(value ?? 'N/A').replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
+
+  const rows = tickets.map((ticket) => {
+    const data = getExportTicketData(ticket);
+
+    return `| ${escapeMarkdown(data.ticket_id)} | ${escapeMarkdown(data.priority)} | ${escapeMarkdown(data.status)} | ${escapeMarkdown(data.category)} | ${escapeMarkdown(data.resolved_at || 'Pending')} |`;
+  });
+
+  const markdown = [
+    '# HELPDESK.AI - Ticket Export',
+    '',
+    `Generated: ${new Date().toLocaleString()}`,
+    `Total Tickets: ${tickets.length}`,
+    '',
+    '| Ticket ID | Priority | Status | Category | Resolved At |',
+    '|---|---|---|---|---|',
+    ...rows,
+    '',
+  ].join('\n');
+
+  const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8;' });
+
+  triggerDownload(blob, filename);
+  return { count: tickets.length, filename };
+}
