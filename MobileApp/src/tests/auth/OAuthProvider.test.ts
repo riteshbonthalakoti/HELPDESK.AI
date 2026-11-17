@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+/// <reference types="jest" />
 import { OAuthProvider } from '../../lib/auth/OAuthProvider';
 
 describe('OAuthProvider PKCE Authentication', () => {
@@ -13,7 +13,6 @@ describe('OAuthProvider PKCE Authentication', () => {
     const challenge = await OAuthProvider.generateCodeChallenge(verifier);
     expect(typeof challenge).toBe('string');
     expect(challenge.length).toBeGreaterThan(20);
-    // Check URL-safe characters
     expect(challenge).not.toMatch(/[+\/=]/);
   });
 
@@ -25,6 +24,7 @@ describe('OAuthProvider PKCE Authentication', () => {
     });
 
     expect(url).toContain('https://github.com/login/oauth/authorize');
+    expect(url).toContain('?client_id=mock_client_id');
     expect(url).toContain('code_challenge_method=S256');
     expect(state).toBeTruthy();
     expect(codeVerifier).toBeTruthy();

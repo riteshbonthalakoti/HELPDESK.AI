@@ -38,7 +38,6 @@ export class OAuthProvider {
     const data = encoder.encode(verifier);
     const digest = await crypto.subtle.digest('SHA-256', data);
     
-    // Convert buffer to URL-safe Base64 string
     const bytes = new Uint8Array(digest);
     let binary = '';
     for (let i = 0; i < bytes.byteLength; i++) {
@@ -78,7 +77,7 @@ export class OAuthProvider {
     }
 
     return {
-      url: `${baseUrl}?A${params.toString()}`,
+      url: `${baseUrl}?${params.toString()}`,
       state,
       codeVerifier,
     };
