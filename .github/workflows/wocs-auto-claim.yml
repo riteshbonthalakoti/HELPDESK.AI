@@ -28,6 +28,22 @@ jobs:
           import time
           import os
 
+          # Participating WOCS 2026 & Partner Ecosystem Repositories
+          TARGET_REPOS = [
+              "SatyamPandey-07/WorkSphere",
+              "phravins/QuantumBilling",
+              "kismatkumari56/AI-Resume-Analyzer",
+              "shashankkshyp/Nexus",
+              "saurabhwagh01/smart-connectivity-analyser",
+              "GianlucaBave/murmury",
+              "palchhinparihar/WordWizard",
+              "DYHARDx/BYAMN-Learning",
+              "janavipandole/Foodie",
+              "mannubaveja007/Auralis",
+              "AseemPrasad/circularfashion",
+              "shreejas18/WOCS"
+          ]
+
           def run_cmd(cmd):
               try:
                   res = subprocess.run(cmd, capture_output=True, text=True, check=False)
@@ -51,74 +67,61 @@ jobs:
                   return False
 
           def main():
-              print("Starting WOCS Issue Auto-Claimer scan...")
-              queries = [
-                  ["gh", "search", "issues", "--label", "wocs", "--state", "open", "--limit", "50", "--json", "repository,number,title,labels,assignees"],
-                  ["gh", "search", "issues", "wocs in:title,body", "--state", "open", "--limit", "40", "--json", "repository,number,title,labels,assignees"]
-              ]
-              
-              seen_issues = {}
-              for q in queries:
-                  code, stdout, stderr = run_cmd(q)
-                  if code == 0:
-                      try:
-                          items = json.loads(stdout)
-                          for item in items:
-                              repo_name = item.get("repository", {}).get("nameWithOwner")
-                              if not repo_name:
-                                  continue
-                              num = item["number"]
-                              key = f"{repo_name}#{num}"
-                              if key not in seen_issues:
-                                  seen_issues[key] = item
-                      except Exception as e:
-                          print(f"Error parsing json: {e}")
-
-              print(f"Analyzed {len(seen_issues)} total candidates.")
+              print("Starting Real-Time WOCS Issue Scanner across target repositories...")
               claims_made = 0
 
-              for key, item in seen_issues.items():
-                  repo_name = item["repository"]["nameWithOwner"]
-                  num = item["number"]
-                  title = item["title"]
-                  labels = [l["name"].lower() for l in item.get("labels", [])]
-                  assignees = [a["login"].lower() for a in item.get("assignees", [])]
-                  
-                  if "riteshbonthalakoti" in repo_name.lower():
-                      continue
-                      
-                  # If already assigned, skip
-                  if len(assignees) > 0:
+              for repo in TARGET_REPOS:
+                  print(f"Scanning {repo}...")
+                  cmd = ["gh", "issue", "list", "--repo", repo, "--state", "open", "--limit", "15", "--json", "number,title,labels,assignees"]
+                  code, stdout, stderr = run_cmd(cmd)
+                  if code != 0:
+                      print(f"  Warning scanning {repo}: {stderr.strip()}")
                       continue
 
-                  # Check for wocs + level 3 / level 2
-                  is_wocs = any("wocs" in l for l in labels) or "wocs" in title.lower()
-                  is_level_3 = any("level 3" in l or l == "l3" for l in labels)
-                  is_level_2 = any("level 2" in l or l == "l2" for l in labels)
+                  try:
+                      issues = json.loads(stdout)
+                  except Exception as e:
+                      print(f"  JSON parse error for {repo}: {e}")
+                      continue
 
-                  if is_wocs and (is_level_3 or is_level_2):
-                      # Check if riteshbonthalakoti already commented on this issue
-                      code, comments_out, _ = run_cmd(["gh", "issue", "view", str(num), "--repo", repo_name, "--json", "comments"])
-                      already_commented = False
-                      if code == 0:
-                          try:
-                              issue_data = json.loads(comments_out)
-                              for comment in issue_data.get("comments", []):
-                                  if comment.get("author", {}).get("login", "").lower() == "riteshbonthalakoti":
-                                      already_commented = True
-                                      break
-                          except Exception:
-                              pass
-                      
-                      if already_commented:
+                  for iss in issues:
+                      num = iss["number"]
+                      title = iss["title"]
+                      labels = [l["name"].lower() for l in iss.get("labels", [])]
+                      assignees = [a["login"].lower() for a in iss.get("assignees", [])]
+
+                      # If already assigned to someone, skip
+                      if len(assignees) > 0:
                           continue
 
-                      print(f"[!] Target match found: {key} - {title}")
-                      if claim_issue(repo_name, num, title, labels):
-                          claims_made += 1
-                          time.sleep(3)
+                      # Check if issue qualifies for WOCS Level 3 or Level 2
+                      is_wocs = any("wocs" in l for l in labels) or "wocs" in title.lower() or repo == "SatyamPandey-07/WorkSphere"
+                      is_level_3 = any("level 3" in l or l == "l3" for l in labels)
+                      is_level_2 = any("level 2" in l or l == "l2" for l in labels)
 
-              print(f"Completed run. Claims made in this pass: {claims_made}")
+                      if is_wocs and (is_level_3 or is_level_2):
+                          # Check if riteshbonthalakoti already commented on this issue
+                          code, comments_out, _ = run_cmd(["gh", "issue", "view", str(num), "--repo", repo, "--json", "comments"])
+                          already_commented = False
+                          if code == 0:
+                              try:
+                                  issue_data = json.loads(comments_out)
+                                  for comment in issue_data.get("comments", []):
+                                      if comment.get("author", {}).get("login", "").lower() == "riteshbonthalakoti":
+                                          already_commented = True
+                                          break
+                              except Exception:
+                                  pass
+
+                          if already_commented:
+                              continue
+
+                          print(f"[!] Target match found: {repo}#{num} - {title} (labels: {labels})")
+                          if claim_issue(repo, num, title, labels):
+                              claims_made += 1
+                              time.sleep(2)
+
+              print(f"Completed run. New claims made in this pass: {claims_made}")
 
           if __name__ == "__main__":
               main()
