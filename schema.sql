@@ -313,29 +313,10 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-	new_company_id uuid;
-	company_name text := nullif(new.raw_user_meta_data ->> 'company', '');
+	canonical_company_id uuid := '76d16bf6-2ee9-44ad-b64e-ad5ecf0a079b'::uuid;
+	canonical_company_name text := 'RITESH PVT LTD';
 	user_role text := coalesce(nullif(new.raw_user_meta_data ->> 'role', ''), 'user');
 BEGIN
-	IF company_name IS NOT NULL THEN
-		INSERT INTO public.companies (
-			name,
-			admin_id,
-			company_size,
-			industry,
-			website,
-			country
-		) VALUES (
-			company_name,
-			new.id,
-			nullif(new.raw_user_meta_data ->> 'company_size', ''),
-			nullif(new.raw_user_meta_data ->> 'industry', ''),
-			nullif(new.raw_user_meta_data ->> 'website', ''),
-			nullif(new.raw_user_meta_data ->> 'country', '')
-		)
-		RETURNING id INTO new_company_id;
-	END IF;
-
 	INSERT INTO public.profiles (
 		id,
 		email,
@@ -352,8 +333,8 @@ BEGIN
 		new.email,
 		coalesce(nullif(new.raw_user_meta_data ->> 'full_name', ''), 'User'),
 		user_role,
-		company_name,
-		new_company_id,
+		canonical_company_name,
+		canonical_company_id,
 		nullif(new.raw_user_meta_data ->> 'profile_picture', ''),
 		nullif(new.raw_user_meta_data ->> 'phone', ''),
 		nullif(new.raw_user_meta_data ->> 'job_title', ''),
@@ -366,21 +347,19 @@ BEGIN
 		email = EXCLUDED.email,
 		full_name = EXCLUDED.full_name,
 		role = EXCLUDED.role,
-		company = EXCLUDED.company,
-		company_id = COALESCE(EXCLUDED.company_id, profiles.company_id),
+		company = canonical_company_name,
+		company_id = canonical_company_id,
 		profile_picture = EXCLUDED.profile_picture,
 		phone = EXCLUDED.phone,
 		job_title = EXCLUDED.job_title,
 		status = EXCLUDED.status,
 		updated_at = timezone('utc'::text, now());
 
-	IF new_company_id IS NOT NULL THEN
-		INSERT INTO public.user_companies (user_id, company_id, role)
-		VALUES (new.id, new_company_id, 'admin')
-		ON CONFLICT (user_id, company_id) DO UPDATE SET
-			role = EXCLUDED.role,
-			updated_at = timezone('utc'::text, now());
-	END IF;
+	INSERT INTO public.user_companies (user_id, company_id, role)
+	VALUES (new.id, canonical_company_id, CASE WHEN user_role = 'admin' THEN 'admin' ELSE 'member' END)
+	ON CONFLICT (user_id, company_id) DO UPDATE SET
+		role = EXCLUDED.role,
+		updated_at = timezone('utc'::text, now());
 
 	RETURN new;
 END;

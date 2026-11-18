@@ -36,11 +36,15 @@ function Signup() {
         .from('companies')
         .select('id, name')
         .eq('status', 'active')
+        .eq('name', 'RITESH PVT LTD')
         .order('name');
 
       if (data) {
         setCompanies(data);
         setFilteredCompanies(data);
+        if (data.length === 1) {
+          setSelectedCompany(data[0]);
+        }
       }
       if (error) console.error("Error fetching companies:", error);
       setIsLoadingCompanies(false);
