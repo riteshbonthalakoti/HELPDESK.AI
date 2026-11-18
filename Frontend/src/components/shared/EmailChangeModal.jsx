@@ -14,7 +14,6 @@ import {
   Lock,
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
-import { API_CONFIG } from "../../config";
 import useAuthStore from "../../store/authStore";
 import useToastStore from "../../store/toastStore";
 
@@ -23,38 +22,17 @@ const EmailChangeModal = ({ isOpen, onClose, currentEmail }) => {
   const [step, setStep] = useState("request"); // 'request' | 'otp' | 'done'
   const [newEmail, setNewEmail] = useState("");
   const [otpDigits, setOtpDigits] = useState(["", "", "", "", "", ""]);
-  const [challengeToken, setChallengeToken] = useState("");
   const [loading, setLoading] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [error, setError] = useState("");
 
   const inputRefs = useRef([]);
 
-  const getApiBase = () => {
-    if (
-      typeof window !== "undefined" &&
-      !/^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname)
-    ) {
-      return "";
-    }
-    return API_CONFIG.BACKEND_URL;
-  };
-
-  const getAuthHeaders = async () => {
-    const { data } = await supabase.auth.getSession();
-    const token = data?.session?.access_token;
-    return {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    };
-  };
-
   useEffect(() => {
     if (!isOpen) return;
     setStep("request");
     setNewEmail("");
     setOtpDigits(["", "", "", "", "", ""]);
-    setChallengeToken("");
     setError("");
     setResendCooldown(0);
   }, [isOpen]);
@@ -92,31 +70,18 @@ const EmailChangeModal = ({ isOpen, onClose, currentEmail }) => {
 
     setLoading(true);
     try {
-      const headers = await getAuthHeaders();
-      const res = await fetch(`${getApiBase()}/api/account/email-change/request`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ new_email: trimmed }),
+      const { error: updateError } = await supabase.auth.updateUser({
+        email: trimmed,
       });
-      const rawText = await res.text();
-      let data = {};
-      try {
-        data = rawText ? JSON.parse(rawText) : {};
-      } catch {
-        data = {};
-      }
-      if (!res.ok) {
-        throw new Error(
-          data.detail || `Request failed (HTTP ${res.status}). Please try again.`
-        );
+      if (updateError) {
+        throw new Error(updateError.message || "Unable to send verification code via Supabase.");
       }
 
-      setNewEmail(data.new_email || trimmed);
-      setChallengeToken(data.challenge_token || "");
+      setNewEmail(trimmed);
       setOtpDigits(["", "", "", "", "", ""]);
       setResendCooldown(30);
       setStep("otp");
-      showToast(`6-digit OTP sent to ${data.new_email || trimmed}`, "success");
+      showToast(`6-digit OTP sent to ${trimmed}`, "success");
       setTimeout(() => inputRefs.current[0]?.focus(), 80);
     } catch (err) {
       setError(err.message);
@@ -176,34 +141,30 @@ const EmailChangeModal = ({ isOpen, onClose, currentEmail }) => {
 
     setLoading(true);
     try {
-      const headers = await getAuthHeaders();
-      const res = await fetch(`${getApiBase()}/api/account/email-change/verify`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          otp_code: otpCode,
-          new_email: newEmail,
-          challenge_token: challengeToken,
-        }),
+      const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
+        email: newEmail,
+        token: otpCode,
+        type: "email_change",
       });
-      const rawText = await res.text();
-      let data = {};
-      try {
-        data = rawText ? JSON.parse(rawText) : {};
-      } catch {
-        data = {};
+      if (verifyError) {
+        throw new Error(verifyError.message || "Invalid or expired 6-digit OTP code.");
       }
-      if (!res.ok) {
-        throw new Error(data.detail || `OTP verification failed (HTTP ${res.status}).`);
+
+      const verifiedUser = verifyData?.user || useAuthStore.getState().user;
+      if (verifiedUser?.id) {
+        await supabase
+          .from("profiles")
+          .update({ email: newEmail, updated_at: new Date().toISOString() })
+          .eq("id", verifiedUser.id);
       }
 
       await supabase.auth.refreshSession().catch(() => {});
-      const user = useAuthStore.getState().user;
-      if (user) {
-        await useAuthStore.getState().getProfile({ ...user, email: data.new_email || newEmail });
+      const activeUser = useAuthStore.getState().user || verifiedUser;
+      if (activeUser) {
+        await useAuthStore.getState().getProfile({ ...activeUser, email: newEmail });
       }
       setStep("done");
-      showToast(`Account email updated to ${data.new_email || newEmail}`, "success");
+      showToast(`Account email updated to ${newEmail}`, "success");
     } catch (err) {
       setError(err.message);
     } finally {

@@ -1,0 +1,20 @@
+project_id = "aejuenhqciagpntcqoir"
+
+[auth]
+site_url = "https://helpdeskai1918.vercel.app"
+additional_redirect_urls = [
+  "https://helpdeskai1918.vercel.app/**",
+  "https://helpdeskaiv1.vercel.app/**",
+  "http://localhost:5173/**"
+]
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = false
+enable_confirmations = true
+otp_length = 6
+otp_expiry = 600
+
+[auth.email.template.email_change]
+subject = "Your HELPDESK.AI 6-Digit Email Verification Code"
+content_path = "./supabase/templates/email_change.html"
