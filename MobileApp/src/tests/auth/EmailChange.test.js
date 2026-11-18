@@ -2,13 +2,22 @@
  * EmailChange.test.js
  *
  * Unit tests for the direct 6-digit OTP email change workflow on Mobile.
+ * Exercises production operations extracted from the email change workflow.
  * Covers:
  *  - 6-digit OTP format validation
  *  - Email validation (different from old email, valid syntax)
  *  - Calling POST /api/account/email-change/request with bearer auth
  *  - Calling POST /api/account/email-change/verify with otp_code and challenge_token
  *  - Profile and session synchronization
+ *  - Parent onSuccess callback notification
  */
+
+import {
+  validateEmailInput,
+  validateOtpCode,
+  requestEmailChangeOtp,
+  verifyEmailChangeOtp,
+} from '../../lib/emailChangeOperations';
 
 describe('Mobile 6-Digit OTP Email Change Workflow', () => {
   const MOCK_CURRENT_EMAIL = 'admin@riteshpvtltd.com';
@@ -20,35 +29,32 @@ describe('Mobile 6-Digit OTP Email Change Workflow', () => {
     jest.clearAllMocks();
   });
 
-  describe('Validation Logic', () => {
-    test('rejects empty or malformed email address', () => {
-      const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((email || '').trim().toLowerCase());
-      expect(isValidEmail('')).toBe(false);
-      expect(isValidEmail('not-an-email')).toBe(false);
-      expect(isValidEmail('test@')).toBe(false);
-      expect(isValidEmail('test@riteshpvtltd.com')).toBe(true);
+  describe('Validation Operations', () => {
+    test('rejects empty or malformed email address using production validator', () => {
+      expect(validateEmailInput('', MOCK_CURRENT_EMAIL).valid).toBe(false);
+      expect(validateEmailInput('not-an-email', MOCK_CURRENT_EMAIL).valid).toBe(false);
+      expect(validateEmailInput('test@', MOCK_CURRENT_EMAIL).valid).toBe(false);
+      expect(validateEmailInput('admin@gmail.com', MOCK_CURRENT_EMAIL).valid).toBe(true);
     });
 
-    test('rejects new email if identical to current email', () => {
-      const isDifferentEmail = (newEmail, currentEmail) =>
-        (newEmail || '').trim().toLowerCase() !== (currentEmail || '').trim().toLowerCase();
-
-      expect(isDifferentEmail('admin@riteshpvtltd.com', 'admin@riteshpvtltd.com')).toBe(false);
-      expect(isDifferentEmail('new@riteshpvtltd.com', 'admin@riteshpvtltd.com')).toBe(true);
+    test('rejects new email if identical to current email (case-insensitive)', () => {
+      expect(validateEmailInput('admin@riteshpvtltd.com', 'admin@riteshpvtltd.com').valid).toBe(false);
+      expect(validateEmailInput('ADMIN@RITESHPVTLTD.COM', 'admin@riteshpvtltd.com').valid).toBe(false);
+      expect(validateEmailInput(MOCK_NEW_EMAIL, MOCK_CURRENT_EMAIL).valid).toBe(true);
     });
 
-    test('validates exactly 6-digit numeric OTP code', () => {
-      const isValidOtp = (otp) => typeof otp === 'string' && /^\d{6}$/.test(otp.trim());
-
-      expect(isValidOtp('12345')).toBe(false);
-      expect(isValidOtp('1234567')).toBe(false);
-      expect(isValidOtp('12a456')).toBe(false);
-      expect(isValidOtp('849201')).toBe(true);
+    test('validates exactly 6-digit numeric OTP code for single string and digit arrays', () => {
+      expect(validateOtpCode('12345').valid).toBe(false);
+      expect(validateOtpCode('1234567').valid).toBe(false);
+      expect(validateOtpCode('12a456').valid).toBe(false);
+      expect(validateOtpCode(['8', '4', '9', '2', '0']).valid).toBe(false);
+      expect(validateOtpCode(['8', '4', '9', '2', '0', '1']).valid).toBe(true);
+      expect(validateOtpCode('849201').valid).toBe(true);
     });
   });
 
-  describe('Request OTP Endpoint Integration', () => {
-    test('sends POST /api/account/email-change/request with auth headers', async () => {
+  describe('Request OTP Endpoint Workflow', () => {
+    test('executes production requestEmailChangeOtp with auth headers and correct payload', async () => {
       const mockFetch = jest.fn().mockResolvedValue({
         ok: true,
         json: async () => ({
@@ -59,20 +65,17 @@ describe('Mobile 6-Digit OTP Email Change Workflow', () => {
           email_sent: true,
         }),
       });
-      global.fetch = mockFetch;
 
-      const backendUrl = 'http://localhost:7860';
-      const authHeaders = { Authorization: 'Bearer mock-jwt-token' };
-
-      const res = await fetch(`${backendUrl}/api/account/email-change/request`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders,
-        },
-        body: JSON.stringify({ new_email: MOCK_NEW_EMAIL }),
+      const mockGetHeaders = jest.fn().mockResolvedValue({
+        Authorization: 'Bearer mock-jwt-token',
       });
-      const data = await res.json();
+
+      const data = await requestEmailChangeOtp({
+        newEmail: MOCK_NEW_EMAIL,
+        backendUrl: 'http://localhost:7860',
+        getHeaders: mockGetHeaders,
+        fetchFn: mockFetch,
+      });
 
       expect(mockFetch).toHaveBeenCalledWith(
         'http://localhost:7860/api/account/email-change/request',
@@ -88,10 +91,26 @@ describe('Mobile 6-Digit OTP Email Change Workflow', () => {
       expect(data.status).toBe('otp_sent');
       expect(data.challenge_token).toBe(MOCK_CHALLENGE_TOKEN);
     });
+
+    test('throws friendly error on rejected request OTP response', async () => {
+      const mockFetch = jest.fn().mockResolvedValue({
+        ok: false,
+        json: async () => ({ detail: 'Rate limit exceeded: please wait 5 minutes.' }),
+      });
+
+      await expect(
+        requestEmailChangeOtp({
+          newEmail: MOCK_NEW_EMAIL,
+          backendUrl: 'http://localhost:7860',
+          getHeaders: async () => ({ Authorization: 'Bearer mock' }),
+          fetchFn: mockFetch,
+        })
+      ).rejects.toThrow('Rate limit exceeded: please wait 5 minutes.');
+    });
   });
 
-  describe('Verify OTP Endpoint Integration', () => {
-    test('sends POST /api/account/email-change/verify with otp_code and challenge_token', async () => {
+  describe('Verify OTP Endpoint Workflow & Profile Sync', () => {
+    test('executes production verifyEmailChangeOtp with payload, profile sync, and parent callback', async () => {
       const mockFetch = jest.fn().mockResolvedValue({
         ok: true,
         json: async () => ({
@@ -101,29 +120,42 @@ describe('Mobile 6-Digit OTP Email Change Workflow', () => {
           message: 'Email verified and updated directly to your new email address.',
         }),
       });
-      global.fetch = mockFetch;
 
-      const backendUrl = 'http://localhost:7860';
-      const authHeaders = { Authorization: 'Bearer mock-jwt-token' };
-
-      const res = await fetch(`${backendUrl}/api/account/email-change/verify`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders,
-        },
-        body: JSON.stringify({
-          otp_code: MOCK_OTP,
-          new_email: MOCK_NEW_EMAIL,
-          challenge_token: MOCK_CHALLENGE_TOKEN,
-        }),
+      const mockRefreshSession = jest.fn().mockResolvedValue({});
+      const mockUpdate = jest.fn().mockReturnValue({
+        eq: jest.fn().mockResolvedValue({ data: null, error: null }),
       });
-      const data = await res.json();
+      const mockSupabase = {
+        auth: {
+          refreshSession: mockRefreshSession,
+          getUser: jest.fn().mockResolvedValue({ data: { user: { id: 'usr-456' } } }),
+        },
+        from: jest.fn().mockReturnValue({
+          update: mockUpdate,
+        }),
+      };
+
+      const onSuccess = jest.fn();
+
+      const data = await verifyEmailChangeOtp({
+        otpCode: MOCK_OTP,
+        newEmail: MOCK_NEW_EMAIL,
+        challengeToken: MOCK_CHALLENGE_TOKEN,
+        backendUrl: 'http://localhost:7860',
+        getHeaders: async () => ({ Authorization: 'Bearer mock-jwt-token' }),
+        fetchFn: mockFetch,
+        supabaseClient: mockSupabase,
+        onSuccess,
+      });
 
       expect(mockFetch).toHaveBeenCalledWith(
         'http://localhost:7860/api/account/email-change/verify',
         expect.objectContaining({
           method: 'POST',
+          headers: expect.objectContaining({
+            Authorization: 'Bearer mock-jwt-token',
+            'Content-Type': 'application/json',
+          }),
           body: JSON.stringify({
             otp_code: MOCK_OTP,
             new_email: MOCK_NEW_EMAIL,
@@ -132,7 +164,39 @@ describe('Mobile 6-Digit OTP Email Change Workflow', () => {
         })
       );
       expect(data.verified).toBe(true);
-      expect(data.new_email).toBe(MOCK_NEW_EMAIL);
+      expect(mockRefreshSession).toHaveBeenCalled();
+      expect(mockSupabase.from).toHaveBeenCalledWith('profiles');
+      expect(onSuccess).toHaveBeenCalledWith(MOCK_NEW_EMAIL);
+    });
+
+    test('recovers gracefully if supabase profile update throws, still completing verification', async () => {
+      const mockFetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ verified: true, new_email: MOCK_NEW_EMAIL }),
+      });
+
+      const mockSupabase = {
+        auth: {
+          refreshSession: jest.fn().mockRejectedValue(new Error('Network offline')),
+          getUser: jest.fn().mockRejectedValue(new Error('Auth failed')),
+        },
+      };
+
+      const onSuccess = jest.fn();
+
+      const data = await verifyEmailChangeOtp({
+        otpCode: MOCK_OTP,
+        newEmail: MOCK_NEW_EMAIL,
+        challengeToken: MOCK_CHALLENGE_TOKEN,
+        backendUrl: 'http://localhost:7860',
+        getHeaders: async () => ({ Authorization: 'Bearer mock-jwt-token' }),
+        fetchFn: mockFetch,
+        supabaseClient: mockSupabase,
+        onSuccess,
+      });
+
+      expect(data.verified).toBe(true);
+      expect(onSuccess).toHaveBeenCalledWith(MOCK_NEW_EMAIL);
     });
   });
 });

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet, View, Text, TouchableOpacity, ScrollView,
-  ActivityIndicator, RefreshControl, Switch, StatusBar, Alert
+  ActivityIndicator, RefreshControl, Switch, StatusBar, Alert, Platform
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
@@ -117,6 +117,23 @@ const AdminSettingsScreen = () => {
     } finally {
       setLoading(false);
       setRefreshing(false);
+    }
+  }, []);
+
+  const refreshProfile = useCallback(async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+      if (profileData) {
+        setProfile(profileData);
+      }
+    } catch (e) {
+      console.error('Refresh profile error:', e);
     }
   }, []);
 
@@ -485,9 +502,9 @@ const AdminSettingsScreen = () => {
         visible={showEmailModal}
         onClose={() => setShowEmailModal(false)}
         currentEmail={profile?.email}
-        onSuccess={(newEmail) => {
+        onSuccess={async (newEmail) => {
           setProfile((prev) => ({ ...prev, email: newEmail }));
-          fetchSettings();
+          await refreshProfile();
         }}
       />
     </SafeAreaView>

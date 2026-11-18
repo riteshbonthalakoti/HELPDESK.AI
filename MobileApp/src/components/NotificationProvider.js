@@ -133,18 +133,46 @@ const Toast = ({ id, type = 'info', title, message, onDismiss }) => {
 export const NotificationProvider = ({ children, topInset = 50 }) => {
   const [toasts, setToasts] = useState([]);
   const timerRefs = useRef({});
+  const counterRef = useRef(0);
 
   const dismiss = useCallback((id) => {
-    clearTimeout(timerRefs.current[id]);
+    if (timerRefs.current[id]) {
+      clearTimeout(timerRefs.current[id]);
+      delete timerRefs.current[id];
+    }
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
   const notify = useCallback(({ type = 'info', title, message, duration = 4200 }) => {
-    const id = Date.now().toString();
-    setToasts((prev) => [...prev.slice(-2), { id, type, title, message }]);
+    counterRef.current += 1;
+    const id = `toast_${counterRef.current}_${Date.now()}`;
+
+    setToasts((prev) => {
+      if (prev.length >= 2) {
+        const evicted = prev.slice(0, prev.length - 2);
+        evicted.forEach((t) => {
+          if (timerRefs.current[t.id]) {
+            clearTimeout(timerRefs.current[t.id]);
+            delete timerRefs.current[t.id];
+          }
+        });
+      }
+      return [...prev.slice(-2), { id, type, title, message }];
+    });
+
     timerRefs.current[id] = setTimeout(() => dismiss(id), duration);
     return id;
   }, [dismiss]);
+
+  React.useEffect(() => {
+    const currentTimers = timerRefs.current;
+    return () => {
+      Object.keys(currentTimers).forEach((id) => {
+        clearTimeout(currentTimers[id]);
+        delete currentTimers[id];
+      });
+    };
+  }, []);
 
   const success = useCallback((title, message, opts) => notify({ type: 'success', title, message, ...opts }), [notify]);
   const error   = useCallback((title, message, opts) => notify({ type: 'error',   title, message, ...opts }), [notify]);

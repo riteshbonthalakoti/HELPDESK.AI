@@ -16,6 +16,19 @@ import * as Haptics from 'expo-haptics';
 import { supabase } from '../lib/supabase';
 import { BACKEND_URL, getAuthHeaders } from '../lib/authBackend';
 import { COLORS, SHADOWS } from '../styles/theme';
+import {
+  validateEmailInput,
+  validateOtpCode,
+  requestEmailChangeOtp,
+  verifyEmailChangeOtp,
+} from '../lib/emailChangeOperations';
+
+export {
+  validateEmailInput,
+  validateOtpCode,
+  requestEmailChangeOtp,
+  verifyEmailChangeOtp,
+};
 
 export default function EmailChangeModal({ visible, onClose, currentEmail, onSuccess }) {
   const [step, setStep] = useState('request'); // 'request' | 'otp' | 'done'
@@ -27,8 +40,10 @@ export default function EmailChangeModal({ visible, onClose, currentEmail, onSuc
   const [error, setError] = useState('');
 
   const inputRefs = useRef([]);
+  const interactionRef = useRef(0);
 
   useEffect(() => {
+    interactionRef.current += 1;
     if (visible) {
       setStep('request');
       setNewEmail('');
@@ -47,39 +62,33 @@ export default function EmailChangeModal({ visible, onClose, currentEmail, onSuc
     return () => clearInterval(timer);
   }, [resendCooldown]);
 
+  const handleClose = () => {
+    if (loading) return; // Prevent dismissal while request or verification is loading
+    interactionRef.current += 1;
+    onClose();
+  };
+
   const handleRequestOtp = async () => {
     setError('');
-    const trimmed = (newEmail || '').trim().toLowerCase();
-    if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
-      setError('Please enter a valid email address (e.g. name@gmail.com).');
-      return;
-    }
-    if (trimmed === (currentEmail || '').trim().toLowerCase()) {
-      setError('New email must be different from your current email.');
+    const validation = validateEmailInput(newEmail, currentEmail);
+    if (!validation.valid) {
+      setError(validation.error);
       return;
     }
 
+    const currentInteraction = interactionRef.current;
     setLoading(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
-      const authHeaders = await getAuthHeaders();
-      const res = await fetch(`${BACKEND_URL}/api/account/email-change/request`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders,
-        },
-        body: JSON.stringify({ new_email: trimmed }),
+      const data = await requestEmailChangeOtp({
+        newEmail: validation.email,
       });
 
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data?.detail || data?.message || 'Failed to send OTP verification email.');
-      }
+      if (interactionRef.current !== currentInteraction) return;
 
       setChallengeToken(data?.challenge_token || null);
-      setNewEmail(trimmed);
+      setNewEmail(validation.email);
       setOtpDigits(['', '', '', '', '', '']);
       setResendCooldown(30);
       setStep('otp');
@@ -88,10 +97,13 @@ export default function EmailChangeModal({ visible, onClose, currentEmail, onSuc
         inputRefs.current[0]?.focus();
       }, 300);
     } catch (err) {
+      if (interactionRef.current !== currentInteraction) return;
       setError(err?.message || 'An error occurred while sending verification code.');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
-      setLoading(false);
+      if (interactionRef.current === currentInteraction) {
+        setLoading(false);
+      }
     }
   };
 
@@ -132,64 +144,46 @@ export default function EmailChangeModal({ visible, onClose, currentEmail, onSuc
 
   const handleVerifyOtp = async () => {
     setError('');
-    const otpCode = otpDigits.join('');
-    if (otpCode.length !== 6) {
-      setError('Please enter the complete 6-digit OTP code.');
+    const validation = validateOtpCode(otpDigits);
+    if (!validation.valid) {
+      setError(validation.error);
       return;
     }
 
+    const currentInteraction = interactionRef.current;
     setLoading(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
-      const authHeaders = await getAuthHeaders();
-      const res = await fetch(`${BACKEND_URL}/api/account/email-change/verify`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders,
-        },
-        body: JSON.stringify({
-          otp_code: otpCode,
-          new_email: newEmail,
-          challenge_token: challengeToken,
-        }),
+      await verifyEmailChangeOtp({
+        otpCode: validation.code,
+        newEmail,
+        challengeToken,
       });
 
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data?.detail || data?.message || 'Invalid or expired OTP code.');
-      }
-
-      // Best-effort local session / profile update
-      await supabase.auth.refreshSession().catch(() => {});
-      const { data: userData } = await supabase.auth.getUser();
-      if (userData?.user?.id) {
-        await supabase
-          .from('profiles')
-          .update({ email: newEmail, updated_at: new Date().toISOString() })
-          .eq('id', userData.user.id)
-          .catch(() => {});
-      }
+      if (interactionRef.current !== currentInteraction) return;
 
       setStep('done');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       if (onSuccess) onSuccess(newEmail);
     } catch (err) {
+      if (interactionRef.current !== currentInteraction) return;
       setError(err?.message || 'Verification failed. Please try again.');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
-      setLoading(false);
+      if (interactionRef.current === currentInteraction) {
+        setLoading(false);
+      }
     }
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
       <KeyboardAvoidingView
         style={styles.backdrop}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <TouchableOpacity style={styles.scrim} activeOpacity={1} onPress={onClose} />
+        <TouchableOpacity style={styles.scrim} activeOpacity={1} onPress={handleClose} />
         <View style={styles.sheet}>
           {/* Header Accent Bar */}
           <View style={styles.topAccentBar} />
@@ -205,7 +199,7 @@ export default function EmailChangeModal({ visible, onClose, currentEmail, onSuc
                 <Text style={styles.modalSubtitle}>Direct 6-digit OTP verification</Text>
               </View>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={8}>
+            <TouchableOpacity onPress={handleClose} style={styles.closeBtn} hitSlop={8} disabled={loading}>
               <X size={18} color={COLORS.textMuted} />
             </TouchableOpacity>
           </View>

@@ -49,13 +49,17 @@ const AdminDashboardScreen = () => {
         .single();
       if (profileData) setProfile(profileData);
 
-      // Fetch all company tickets (single-company RITESH PVT LTD enforcement)
-      const company = profileData?.company || 'RITESH PVT LTD';
+      // Fetch all company tickets (filter by verified company_id workspace UUID)
       let query = supabase
         .from('tickets')
         .select('*')
-        .eq('company', company)
         .order('created_at', { ascending: false });
+
+      if (profileData?.company_id) {
+        query = query.eq('company_id', profileData.company_id);
+      } else if (profileData?.company) {
+        query = query.eq('company', profileData.company);
+      }
       
       const { data: ticketData, error } = await query;
       if (!error && ticketData) {

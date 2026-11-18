@@ -54,6 +54,24 @@ const PRIORITY_OPTIONS = [
   { id: 'critical', label: 'Critical', color: '#ef4444', bg: '#fee2e2' },
 ];
 
+import {
+  normalizeStatus,
+  calculateKpiCounts,
+  filterTickets,
+  fetchTicketsQuery,
+  updateTicketAction,
+  claimTicketAction,
+} from '../../lib/adminTicketOperations';
+
+export {
+  normalizeStatus,
+  calculateKpiCounts,
+  filterTickets,
+  fetchTicketsQuery,
+  updateTicketAction,
+  claimTicketAction,
+};
+
 const getStatusColor = (status) => {
   const rawStatus = String(status || '').toLowerCase().trim();
   if (rawStatus.includes('resolv') || rawStatus === 'closed') {
@@ -85,6 +103,12 @@ const TicketItem = memo(
     onOpenPriorityPicker,
     onClaim,
   }) => {
+    const rawStatus = String(item.status || '').toLowerCase().trim();
+    const isClosedOrResolved =
+      rawStatus === 'closed' ||
+      rawStatus === 'resolved' ||
+      rawStatus === 'auto_resolved' ||
+      rawStatus.includes('resolv');
     const statusColor = getStatusColor(item.status);
     const creatorName = item.creator?.full_name || 'System User';
     const isClaimedByMe =
@@ -226,7 +250,7 @@ const TicketItem = memo(
                   {item.assigned_agent?.full_name || 'Assigned'}
                 </Text>
               </View>
-            ) : (
+            ) : isClosedOrResolved ? null : (
               <TouchableOpacity
                 style={styles.claimBtn}
                 onPress={(e) => {
@@ -266,7 +290,11 @@ const AdminTicketsScreen = () => {
     currentVal: null,
   });
 
+  // Ref to track in-flight and recent ticket mutations to prevent stale fetch overwrites
+  const pendingMutationsRef = React.useRef(new Map());
+
   const fetchTickets = useCallback(async () => {
+    const fetchStartTime = Date.now();
     try {
       const {
         data: { user },
@@ -281,31 +309,21 @@ const AdminTicketsScreen = () => {
         .single();
       if (profile) setCurrentProfile(profile);
 
-      // Single-company RITESH PVT LTD enforcement
-      const company = profile?.company || 'RITESH PVT LTD';
+      const data = await fetchTicketsQuery(supabase, {
+        company: profile?.company,
+        companyId: profile?.company_id,
+      });
 
-      let query = supabase
-        .from('tickets')
-        .select(`
-          *,
-          creator:profiles!tickets_user_id_fkey(full_name, email),
-          assigned_agent:profiles!tickets_assigned_agent_id_fkey(full_name, email)
-        `)
-        .eq('company', company)
-        .order('created_at', { ascending: false });
-
-      const { data, error } = await query;
-      if (error) {
-        // Safe fallback without relations if foreign keys differ
-        const { data: fallbackData } = await supabase
-          .from('tickets')
-          .select('*')
-          .eq('company', company)
-          .order('created_at', { ascending: false });
-        setTickets(fallbackData || []);
-      } else {
-        setTickets(data || []);
-      }
+      // Preserve newer pending/optimistic edits so older fetch response does not overwrite them
+      setTickets((prev) => {
+        return data.map((fetched) => {
+          const pending = pendingMutationsRef.current.get(fetched.id);
+          if (pending && pending.timestamp >= fetchStartTime) {
+            return { ...fetched, ...pending.fields };
+          }
+          return fetched;
+        });
+      });
     } catch (e) {
       console.error('Fetch admin tickets queue error:', e);
     } finally {
@@ -327,64 +345,10 @@ const AdminTicketsScreen = () => {
   };
 
   // ── KPI Counts for 2x2 Grid ────────────────────────────────────────────────
-  const totalCount = tickets.length;
-  const pendingCount = tickets.filter((t) => {
-    const raw = String(t.status || '').toLowerCase().trim();
-    return raw === 'pending' || raw === 'open' || raw === 'pending_human';
-  }).length;
-  const inProgressCount = tickets.filter((t) => {
-    const raw = String(t.status || '').toLowerCase().trim();
-    return raw === 'in progress' || raw === 'in_progress';
-  }).length;
-  const resolvedCount = tickets.filter((t) => {
-    const raw = String(t.status || '').toLowerCase().trim();
-    return raw.includes('resolv') || raw === 'closed';
-  }).length;
+  const { totalCount, pendingCount, inProgressCount, resolvedCount } = calculateKpiCounts(tickets);
 
   const getFilteredTickets = () => {
-    let filtered = tickets;
-
-    if (activeFilter !== 'all') {
-      filtered = filtered.filter((t) => {
-        const rawStatus = String(t.status || '').toLowerCase().trim();
-        if (activeFilter === 'pending') {
-          return (
-            rawStatus === 'pending' ||
-            rawStatus === 'open' ||
-            rawStatus === 'pending_human'
-          );
-        }
-        if (activeFilter === 'in_progress') {
-          return rawStatus === 'in progress' || rawStatus === 'in_progress';
-        }
-        if (activeFilter === 'resolved') {
-          return (
-            rawStatus === 'resolved' ||
-            rawStatus === 'auto_resolved' ||
-            rawStatus.includes('resolv')
-          );
-        }
-        if (activeFilter === 'closed') {
-          return rawStatus === 'closed';
-        }
-        return rawStatus === activeFilter.toLowerCase();
-      });
-    }
-
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
-      filtered = filtered.filter(
-        (t) =>
-          t.subject?.toLowerCase().includes(q) ||
-          t.description?.toLowerCase().includes(q) ||
-          t.category?.toLowerCase().includes(q) ||
-          t.priority?.toLowerCase().includes(q) ||
-          t.creator?.full_name?.toLowerCase().includes(q) ||
-          String(t.id).includes(q)
-      );
-    }
-
-    return filtered;
+    return filterTickets(tickets, activeFilter, searchQuery);
   };
 
   const handleTicketPress = useCallback(
@@ -423,38 +387,77 @@ const AdminTicketsScreen = () => {
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    // Optimistic local update
+    // Save previous snapshot of the specific ticket for safe targeted rollback
+    const previousTicket = tickets.find((t) => t.id === ticketId);
+
     const updatePayload =
       type === 'status'
         ? { status: optionId, updated_at: new Date().toISOString() }
         : { priority: optionId, updated_at: new Date().toISOString() };
 
+    // Register pending mutation timestamp
+    pendingMutationsRef.current.set(ticketId, {
+      fields: updatePayload,
+      timestamp: Date.now(),
+    });
+
+    // Optimistic local update
     setTickets((prev) =>
       prev.map((t) => (t.id === ticketId ? { ...t, ...updatePayload } : t))
     );
 
     try {
-      const { error } = await supabase
-        .from('tickets')
-        .update(updatePayload)
-        .eq('id', ticketId);
+      const updatedRow = await updateTicketAction(supabase, ticketId, updatePayload);
+      pendingMutationsRef.current.delete(ticketId);
 
-      if (error) throw error;
+      // Merge verified row into local state
+      setTickets((prev) =>
+        prev.map((t) => (t.id === ticketId ? { ...t, ...updatedRow } : t))
+      );
+
       notification?.success?.(
         'Updated Successfully',
         `Ticket ${type === 'status' ? 'status' : 'priority'} set to ${optionId.toUpperCase()}.`
       );
     } catch (err) {
       console.error('Update ticket error:', err);
+      pendingMutationsRef.current.delete(ticketId);
+      // Roll back ONLY the affected ticket without blowing away the queue
+      if (previousTicket) {
+        setTickets((prev) =>
+          prev.map((t) => (t.id === ticketId ? previousTicket : t))
+        );
+      }
       notification?.error?.('Update Failed', err?.message || 'Could not update ticket.');
-      fetchTickets();
     }
   };
 
   const handleClaimTicket = useCallback(
     async (ticketId) => {
       if (!currentUser?.id) return;
+
+      const targetTicket = tickets.find((t) => t.id === ticketId);
+      if (targetTicket) {
+        const s = String(targetTicket.status || '').toLowerCase().trim();
+        if (s === 'closed' || s.includes('resolv')) {
+          notification?.warning?.('Cannot Claim', 'Closed or resolved tickets cannot be claimed.');
+          return;
+        }
+      }
+
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      const previousTicket = targetTicket;
+      const optimisticFields = {
+        assigned_agent_id: currentUser.id,
+        status: 'in_progress',
+        assigned_agent: { full_name: currentProfile?.full_name || 'Admin' },
+      };
+
+      pendingMutationsRef.current.set(ticketId, {
+        fields: optimisticFields,
+        timestamp: Date.now(),
+      });
 
       // Optimistic update
       setTickets((prev) =>
@@ -462,33 +465,54 @@ const AdminTicketsScreen = () => {
           t.id === ticketId
             ? {
                 ...t,
-                assigned_agent_id: currentUser.id,
-                status: 'in_progress',
-                assigned_agent: { full_name: currentProfile?.full_name || 'Admin' },
+                ...optimisticFields,
               }
             : t
         )
       );
 
       try {
-        const { error } = await supabase
-          .from('tickets')
-          .update({
-            assigned_agent_id: currentUser.id,
-            status: 'in_progress',
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', ticketId);
+        const res = await claimTicketAction(supabase, ticketId, currentUser.id);
+        pendingMutationsRef.current.delete(ticketId);
 
-        if (error) throw error;
+        if (!res.success && res.conflict) {
+          // Revert optimistic update for this ticket
+          if (previousTicket) {
+            setTickets((prev) =>
+              prev.map((t) => (t.id === ticketId ? previousTicket : t))
+            );
+          }
+          notification?.warning?.('Claim Conflict', 'This ticket has already been claimed by another agent.');
+          fetchTickets();
+          return;
+        }
+
+        // Merge updated row
+        setTickets((prev) =>
+          prev.map((t) =>
+            t.id === ticketId
+              ? {
+                  ...t,
+                  ...res.ticket,
+                  assigned_agent: { full_name: currentProfile?.full_name || 'Admin' },
+                }
+              : t
+          )
+        );
         notification?.success?.('Ticket Claimed', 'Assigned to your queue in progress.');
       } catch (err) {
         console.error('Claim ticket error:', err);
+        pendingMutationsRef.current.delete(ticketId);
+        // Roll back specific ticket from snapshot
+        if (previousTicket) {
+          setTickets((prev) =>
+            prev.map((t) => (t.id === ticketId ? previousTicket : t))
+          );
+        }
         notification?.error?.('Claim Failed', err?.message || 'Could not claim ticket.');
-        fetchTickets();
       }
     },
-    [currentUser, currentProfile, notification, fetchTickets]
+    [currentUser, currentProfile, tickets, notification, fetchTickets]
   );
 
   const renderTicketItem = useCallback(
@@ -720,9 +744,9 @@ const AdminTicketsScreen = () => {
             <View style={styles.pickerOptionsList}>
               {(pickerModal.type === 'status' ? STATUS_OPTIONS : PRIORITY_OPTIONS).map((opt) => {
                 const isSelected =
-                  pickerModal.currentVal === opt.id ||
-                  (pickerModal.type === 'status' &&
-                    pickerModal.currentVal?.includes(opt.id));
+                  pickerModal.type === 'status'
+                    ? normalizeStatus(pickerModal.currentVal) === opt.id
+                    : pickerModal.currentVal === opt.id;
                 return (
                   <TouchableOpacity
                     key={opt.id}
@@ -933,6 +957,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    flexWrap: 'wrap',
+    rowGap: 8,
     marginTop: 10,
     paddingTop: 10,
     borderTopWidth: 1,

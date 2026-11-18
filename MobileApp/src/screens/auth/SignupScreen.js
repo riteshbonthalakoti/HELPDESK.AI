@@ -76,13 +76,13 @@ const SignupScreen = () => {
           setFilteredCompanies(data);
           setSelectedCompany(data[0]);
         } else {
-          const defaultCompany = { id: 'ritesh-pvt-ltd', name: 'RITESH PVT LTD' };
+          const defaultCompany = { id: null, name: 'RITESH PVT LTD' };
           setCompanies([defaultCompany]);
           setFilteredCompanies([defaultCompany]);
           setSelectedCompany(defaultCompany);
         }
       } catch {
-        const defaultCompany = { id: 'ritesh-pvt-ltd', name: 'RITESH PVT LTD' };
+        const defaultCompany = { id: null, name: 'RITESH PVT LTD' };
         setCompanies([defaultCompany]);
         setFilteredCompanies([defaultCompany]);
         setSelectedCompany(defaultCompany);
@@ -143,6 +143,11 @@ const SignupScreen = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
+      const isUuid = (val) =>
+        typeof val === 'string' &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+      const validCompanyId = isUuid(selectedCompany.id) ? selectedCompany.id : null;
+
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -151,7 +156,7 @@ const SignupScreen = () => {
             full_name: fullName,
             role: 'user',
             company: selectedCompany.name,
-            company_id: selectedCompany.id,
+            ...(validCompanyId ? { company_id: validCompanyId } : {}),
           },
         },
       });
@@ -159,12 +164,17 @@ const SignupScreen = () => {
       if (error) throw error;
 
       if (data.user) {
-        // Insert user_request row
-        await supabase.from('user_requests').insert([{
+        // Insert user_request row and verify no error
+        const requestPayload = {
           user_id: data.user.id,
-          company_id: selectedCompany.id,
           status: 'pending',
-        }]);
+          ...(validCompanyId ? { company_id: validCompanyId } : {}),
+        };
+
+        const { error: reqError } = await supabase.from('user_requests').insert([requestPayload]);
+        if (reqError) {
+          throw new Error('Account created, but failed to record company access request: ' + (reqError.message || 'database error'));
+        }
       }
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
