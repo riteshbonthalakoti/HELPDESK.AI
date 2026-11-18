@@ -12,7 +12,7 @@ from backend.config import settings
 from backend.swagger_config import SWAGGER_UI_CUSTOM_CSS, SWAGGER_UI_CUSTOM_JS
 from backend.routers import metrics as metrics_router
 
-from backend.routers import tickets, ai, admin, health, auth, websocket, sla_prediction, ticket_merge
+from backend.routers import tickets, ai, admin, health, auth, websocket, sla_prediction, ticket_merge, email_change
 from backend.routes import translation, estimator, voice, privacy, active_learning, weekly_digest
 from backend.routers import upload as upload_router
 
@@ -61,6 +61,7 @@ if settings.SUPABASE_URL and settings.SUPABASE_SERVICE_KEY and not settings.ALLO
 app.include_router(tickets.router)
 app.include_router(ai.router)
 app.include_router(admin.router)
+app.include_router(email_change.router)
 app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(websocket.router)

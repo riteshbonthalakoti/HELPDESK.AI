@@ -1,0 +1,179 @@
+name: WSOC 2026 Issue Auto-Assign (/claim)
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  issues: write
+
+jobs:
+  handle-claim:
+    if: ${{ !github.event.issue.pull_request && github.event.issue.state == 'open' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Process /claim, /assign, and /unclaim Commands
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issueNumber = context.issue.number;
+            const commenter = context.payload.comment.user.login;
+            const commenterLower = commenter.toLowerCase();
+            const body = (context.payload.comment.body || "").trim();
+            const bodyLower = body.toLowerCase();
+
+            // Ignore bots
+            if (context.payload.comment.user.type === "Bot" || commenterLower.endsWith("[bot]")) {
+              console.log(`Ignoring bot comment from ${commenter}`);
+              return;
+            }
+
+            const isMaintainer = commenterLower === owner.toLowerCase();
+
+            // Detect commands
+            const unclaimMatch = /(?:^|\s)\/(?:unclaim|unassign)\b/i.test(body);
+            const maintainerAssignMatch = isMaintainer
+              ? body.match(/(?:^|\s)\/assign\s+@?([a-zA-Z0-9-]{1,39})\b/i)
+              : null;
+            const selfClaimMatch =
+              /(?:^|\s)\/(?:claim|assign(?:-me)?)\b/i.test(body) ||
+              /\b(?:please\s+)?assign\s+(?:this\s+(?:issue\s+)?)?(?:to\s+)?me\b/i.test(bodyLower);
+
+            if (!unclaimMatch && !maintainerAssignMatch && !selfClaimMatch) {
+              console.log("No claim/assign/unclaim command detected.");
+              return;
+            }
+
+            const { data: issue } = await github.rest.issues.get({
+              owner,
+              repo,
+              issue_number: issueNumber,
+            });
+            const currentAssignees = (issue.assignees || []).map((a) => a.login);
+            const currentAssigneesLower = currentAssignees.map((a) => a.toLowerCase());
+
+            // 1. Handle /unclaim
+            if (unclaimMatch) {
+              const targetToRemove = isMaintainer ? currentAssignees : (currentAssigneesLower.includes(commenterLower) ? [commenter] : []);
+              if (targetToRemove.length === 0) {
+                console.log(`${commenter} is not assigned to #${issueNumber}.`);
+                return;
+              }
+              await github.rest.issues.removeAssignees({
+                owner,
+                repo,
+                issue_number: issueNumber,
+                assignees: targetToRemove,
+              });
+              try {
+                await github.rest.issues.removeLabel({
+                  owner,
+                  repo,
+                  issue_number: issueNumber,
+                  name: "Status: Assigned",
+                });
+              } catch (_) {}
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: issueNumber,
+                body: `🔓 Unassigned ${targetToRemove.map((u) => `@${u}`).join(", ")} from Issue #${issueNumber}. This issue is now open for other WSOC 2026 contributors to \`/claim\`.`,
+              });
+              return;
+            }
+
+            const targetUser = maintainerAssignMatch ? maintainerAssignMatch[1] : commenter;
+            const targetUserLower = targetUser.toLowerCase();
+
+            // 2. Check if already assigned
+            if (currentAssigneesLower.includes(targetUserLower)) {
+              console.log(`@${targetUser} is already assigned to #${issueNumber}.`);
+              return;
+            }
+            if (currentAssignees.length > 0 && !isMaintainer) {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: issueNumber,
+                body: `Hi @${commenter}! This issue is already assigned to ${currentAssignees.map((u) => `@${u}`).join(", ")}. Please check other open unassigned WSOC issues!`,
+              });
+              return;
+            }
+
+            // 3. Enforce 1 active open issue per contributor (unless maintainer overrides)
+            if (!isMaintainer) {
+              const { data: activeAssigned } = await github.rest.issues.listForRepo({
+                owner,
+                repo,
+                state: "open",
+                assignee: targetUser,
+                per_page: 20,
+              });
+              const openNonPrIssues = activeAssigned.filter(
+                (item) => !item.pull_request && item.number !== issueNumber
+              );
+              if (openNonPrIssues.length > 0) {
+                const activeList = openNonPrIssues.map((i) => `#${i.number}`).join(", ");
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number: issueNumber,
+                  body: `Hi @${commenter}! Under our WSOC 2026 fairness policy (1 active issue per contributor), you are currently assigned to ${activeList}. Once that PR is merged (or you \`/unclaim\` it), you can claim Issue #${issueNumber}.`,
+                });
+                return;
+              }
+            }
+
+            // 4. Perform real GitHub API assignment
+            console.log(`Assigning @${targetUser} to #${issueNumber}...`);
+            const assignRes = await github.rest.issues.addAssignees({
+              owner,
+              repo,
+              issue_number: issueNumber,
+              assignees: [targetUser],
+            });
+
+            // 5. Strictly verify the user actually appears in GitHub's Assignees field
+            const verifiedAssignees = (assignRes.data.assignees || []).map((a) => a.login.toLowerCase());
+            if (!verifiedAssignees.includes(targetUserLower)) {
+              const { data: refreshed } = await github.rest.issues.get({
+                owner,
+                repo,
+                issue_number: issueNumber,
+              });
+              const refreshedAssignees = (refreshed.assignees || []).map((a) => a.login.toLowerCase());
+              if (!refreshedAssignees.includes(targetUserLower)) {
+                console.error(`GitHub API did not attach @${targetUser} as assignee on #${issueNumber}.`);
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number: issueNumber,
+                  body: `⚠️ Could not automatically add @${targetUser} to the Assignees sidebar (GitHub requires the user to have commented on this issue or have repository access). @${owner} please assign manually if needed.`,
+                });
+                core.setFailed(`Failed to verify assignee @${targetUser} on #${issueNumber}`);
+                return;
+              }
+            }
+
+            // 6. Add "Status: Assigned" label
+            try {
+              await github.rest.issues.addLabels({
+                owner,
+                repo,
+                issue_number: issueNumber,
+                labels: ["Status: Assigned"],
+              });
+            } catch (err) {
+              console.warn("Could not add Status: Assigned label:", err.message);
+            }
+
+            // 7. Post verified confirmation comment
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: issueNumber,
+              body: `✅ Issue #${issueNumber} has been officially assigned to @${targetUser} under **WSOC 2026**!\n\n- Target branch for your PR: \`main\`\n- Onboarding guide: [WSOC_DEV_ONBOARDING.md](https://github.com/${owner}/${repo}/blob/main/docs/WSOC_DEV_ONBOARDING.md)\n- Need to step back? Comment \`/unclaim\` anytime.\n\nHappy coding! 🚀`,
+            });

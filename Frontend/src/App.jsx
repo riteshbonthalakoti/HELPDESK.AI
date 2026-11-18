@@ -17,6 +17,7 @@ import useRealtimeNotifications from "./hooks/useRealtimeNotifications";
 import Login from "./pages/Login";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
+import VerifyEmailChange from "./pages/VerifyEmailChange";
 import Signup from "./pages/Signup";
 import AdminSignup from "./pages/AdminSignup";
 import AdminLobby from "./pages/AdminLobby";
@@ -256,6 +257,7 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/verify-email-change" element={<VerifyEmailChange />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/admin-signup" element={<AdminSignup />} />
         <Route path="/admin-lobby" element={<AdminLobby />} />

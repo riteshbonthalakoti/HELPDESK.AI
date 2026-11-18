@@ -1,86 +1,71 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PlusCircle, ListTodo, Sparkles } from 'lucide-react';
+import { PlusCircle, ListTodo, Sparkles, ArrowUpRight } from 'lucide-react';
 
-const WelcomeCard = ({ userName = "Ritesh" }) => {
+const WelcomeCard = ({ userName = "Ritesh", companyName = "RITESH PVT LTD" }) => {
     const navigate = useNavigate();
+    const firstName = String(userName || "Guest").split(" ")[0];
 
     return (
         <div
             id="tour-welcome"
-            style={{
-                background: '#ffffff',
-                borderLeft: '2px solid #22a045',
-                borderRadius: '20px',
-                boxShadow: '0 2px 24px rgba(0,0,0,0.06)',
-                padding: '40px 48px',
-                position: 'relative',
-                overflow: 'hidden',
-            }}
+            className="relative overflow-hidden rounded-3xl p-5 sm:p-8 md:p-10 bg-gradient-to-br from-[#0b1f17] via-[#0f2e22] to-[#064e3b] md:bg-none md:bg-white md:border-l-4 md:border-l-emerald-500 border border-emerald-900/20 md:border-emerald-100 shadow-xl shadow-emerald-950/15 md:shadow-[0_2px_24px_rgba(0,0,0,0.06)]"
         >
-            {/* Badge */}
-            <div style={{ marginBottom: '16px' }}>
-                <span style={{
-                    display: 'inline-flex', alignItems: 'center', gap: '6px',
-                    background: '#EDFAF3', color: '#16a34a', border: '1px solid #bbf7d0',
-                    borderRadius: '100px', fontSize: '11px', fontWeight: 600,
-                    letterSpacing: '0.08em', padding: '5px 14px',
-                }}>
-                    <Sparkles size={12} style={{ fill: '#16a34a' }} />
-                    AI-Enhanced Support
-                </span>
-            </div>
+            {/* Mobile ambient glow */}
+            <div className="md:hidden pointer-events-none absolute -top-16 -right-16 w-48 h-48 rounded-full bg-emerald-400/20 blur-3xl" />
+            <div className="md:hidden pointer-events-none absolute -bottom-16 -left-10 w-40 h-40 rounded-full bg-teal-400/15 blur-2xl" />
 
-            {/* Heading */}
-            <h2 style={{
-                fontFamily: 'Syne, sans-serif', fontSize: '34px', fontWeight: 800,
-                color: '#0f1f12', letterSpacing: '-0.025em', margin: '0 0 8px 0',
-            }}>
-                Welcome back, {userName}
-            </h2>
+            <div className="relative z-10">
+                {/* Badge row */}
+                <div className="flex items-center justify-between gap-2 mb-3.5 sm:mb-4">
+                    <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold tracking-wider uppercase bg-emerald-400/15 text-emerald-300 border border-emerald-400/25 md:bg-[#EDFAF3] md:text-[#16a34a] md:border-[#bbf7d0]">
+                        <Sparkles size={12} className="fill-current" />
+                        AI-Enhanced Support
+                    </span>
+                    <span className="md:hidden inline-flex items-center gap-1.5 text-[10px] font-bold text-emerald-200/80 uppercase tracking-widest">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        Live
+                    </span>
+                </div>
 
-            {/* Description */}
-            <p style={{ color: '#6b7280', fontSize: '15px', maxWidth: '520px', margin: '0 0 28px 0', lineHeight: 1.6 }}>
-                Our AI assistant is ready to help you. Most issues are analyzed and resolved in under 5 minutes.
-            </p>
-
-            {/* Buttons */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
-                <button
-                    id="tour-create-ticket"
-                    onClick={() => navigate('/create-ticket')}
-                    style={{
-                        display: 'inline-flex', alignItems: 'center', gap: '8px',
-                        background: 'linear-gradient(135deg, #16a34a, #22c55e)', color: '#fff',
-                        borderRadius: '12px', padding: '12px 24px', fontWeight: 600,
-                        fontSize: '14px', border: 'none', cursor: 'pointer',
-                        boxShadow: '0 4px 16px rgba(34,160,69,0.3)', transition: 'transform 0.2s',
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
-                    onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                {/* Heading */}
+                <h2
+                    className="text-2xl sm:text-3xl md:text-[34px] font-extrabold tracking-tight leading-tight text-white md:text-[#0f1f12] mb-2"
+                    style={{ fontFamily: 'Syne, sans-serif' }}
                 >
-                    <PlusCircle size={18} />
-                    Report New Issue
-                </button>
-                <button
-                    onClick={() => navigate('/my-tickets')}
-                    style={{
-                        display: 'inline-flex', alignItems: 'center', gap: '8px',
-                        background: '#fff', color: '#15803d',
-                        border: '1.5px solid #d1fae5', borderRadius: '12px',
-                        padding: '12px 24px', fontWeight: 600, fontSize: '14px',
-                        cursor: 'pointer', transition: 'background 0.2s',
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = '#f0fdf4'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = '#fff'}
-                >
-                    <ListTodo size={18} />
-                    View My Tickets
-                </button>
+                    <span className="md:hidden">Hi {firstName}, need help?</span>
+                    <span className="hidden md:inline">Welcome back, {userName}</span>
+                </h2>
+
+                {/* Description */}
+                <p className="text-emerald-100/80 md:text-[#6b7280] text-sm sm:text-[15px] max-w-[520px] mb-5 sm:mb-7 leading-relaxed">
+                    Our AI assistant for <span className="font-semibold text-white md:text-slate-800">{companyName}</span> analyzes and resolves most issues in under 5 minutes.
+                </p>
+
+                {/* CTA Buttons */}
+                <div className="grid grid-cols-1 sm:flex sm:flex-wrap gap-2.5 sm:gap-3">
+                    <button
+                        id="tour-create-ticket"
+                        type="button"
+                        onClick={() => navigate('/create-ticket')}
+                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-2xl sm:rounded-xl px-5 py-3.5 sm:py-3 font-bold text-sm text-emerald-950 md:text-white bg-emerald-400 hover:bg-emerald-300 md:bg-gradient-to-br md:from-emerald-600 md:to-emerald-500 shadow-lg shadow-emerald-950/20 md:shadow-emerald-600/25 active:scale-[0.98] transition-all cursor-pointer"
+                    >
+                        <PlusCircle size={18} />
+                        <span>Report New Issue</span>
+                        <ArrowUpRight size={16} className="sm:hidden ml-auto opacity-75" />
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => navigate('/my-tickets')}
+                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-2xl sm:rounded-xl px-5 py-3 font-semibold text-sm text-emerald-100 md:text-emerald-700 bg-white/10 hover:bg-white/15 md:bg-white md:hover:bg-emerald-50 border border-white/15 md:border-emerald-200 active:scale-[0.98] transition-all cursor-pointer"
+                    >
+                        <ListTodo size={18} />
+                        <span>View My Tickets</span>
+                    </button>
+                </div>
             </div>
         </div>
     );
 };
 
 export default WelcomeCard;
-

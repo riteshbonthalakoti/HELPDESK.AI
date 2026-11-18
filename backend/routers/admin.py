@@ -55,13 +55,21 @@ async def api_delete_profile(
     except: pass
     return {"success": True}
 
+CANONICAL_COMPANY_ID = "76d16bf6-2ee9-44ad-b64e-ad5ecf0a079b"
+CANONICAL_COMPANY_NAME = "RITESH PVT LTD"
+
 @router.get("/companies")
 async def api_get_companies(
     current_user: dict = Depends(get_current_user),
 ):
-    """Return the company list visible to the current admin."""
+    """Return the canonical single-tenant company (RITESH PVT LTD)."""
     if not supabase: return []
-    res = supabase.table("companies").select("*").execute()
+    res = (
+        supabase.table("companies")
+        .select("*")
+        .eq("id", CANONICAL_COMPANY_ID)
+        .execute()
+    )
     return res.data
 
 @router.get("/admin_requests")

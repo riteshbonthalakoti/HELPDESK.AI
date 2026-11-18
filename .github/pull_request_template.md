@@ -1,5 +1,5 @@
 > [!IMPORTANT]
-> **GSSoC 2026 Target Branch Requirement**: All Pull Requests **MUST target the `gssoc` branch**, NOT `main`. PRs opened against `main` cannot be merged and will be requested to be re-targeted.
+> **WSOC 2026 Target Branch Requirement**: All Pull Requests **MUST target the `main` branch**.
 
 ## Description
 
@@ -20,16 +20,16 @@ Fixes #
 - [ ] 📝 Documentation update
 - [ ] 🎨 UI / UX refinement
 
-## GSSoC 2026 Contributor Checklist
+## WSOC 2026 Contributor Checklist
 
 Please verify before requesting maintainer review:
 
 - [ ] ⭐ I have starred the repository: [riteshbonthalakoti/HELPDESK.AI](https://github.com/riteshbonthalakoti/HELPDESK.AI)
 - [ ] 👤 I have followed the project maintainer: [@riteshbonthalakoti](https://github.com/riteshbonthalakoti)
 - [ ] 🍴 I have forked the repository
-- [ ] 🖥️ I have registered on the test app ([https://helpdeskaiv1.vercel.app/signup](https://helpdeskaiv1.vercel.app/signup)) under **Employee Signup** with company **RITESH PVT LTD**
+- [ ] 🖥️ I have registered on the live portal ([https://helpdeskai1918.vercel.app/signup](https://helpdeskai1918.vercel.app/signup)) under **Employee Signup** with company **RITESH PVT LTD**
 - [ ] 🎯 I was assigned to this issue prior to opening this PR
-- [ ] 🌿 My PR targets the `gssoc` branch
+- [ ] 🌿 My PR targets the `main` branch
 - [ ] 🚫 My code contains no `console.log`, temporary debug `print()`, or leftover commented blocks
 - [ ] 👤 No AI attribution or co-authorship tags included
 - [ ] 🧪 New and existing unit tests pass locally

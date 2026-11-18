@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Network, Laptop, ShieldCheck, ArrowRight } from 'lucide-react';
+import { Network, Laptop, ShieldCheck, ChevronRight } from 'lucide-react';
 
 const actions = [
     {
@@ -8,75 +8,72 @@ const actions = [
         description: "Connectivity problems, VPN access, and slow internet.",
         category: "Network",
         icon: Network,
-        iconBg: '#EDFAF3',
-        iconColor: '#16a34a',
+        iconBg: 'bg-emerald-50',
+        iconColor: 'text-emerald-600',
+        accentRing: 'group-hover:border-emerald-300',
     },
     {
         title: "Software Problems",
         description: "Application crashes, license issues, and installations.",
         category: "Software",
         icon: Laptop,
-        iconBg: '#EEF2FF',
-        iconColor: '#4f46e5',
+        iconBg: 'bg-indigo-50',
+        iconColor: 'text-indigo-600',
+        accentRing: 'group-hover:border-indigo-300',
     },
     {
         title: "Access Requests",
         description: "Permission changes, new account setup, and MFA.",
         category: "Access",
         icon: ShieldCheck,
-        iconBg: '#F5F0FF',
-        iconColor: '#7c3aed',
+        iconBg: 'bg-violet-50',
+        iconColor: 'text-violet-600',
+        accentRing: 'group-hover:border-violet-300',
     }
 ];
 
 const QuickActions = () => {
     const navigate = useNavigate();
-    const [hoveredIdx, setHoveredIdx] = useState(null);
 
     const handleActionClick = (category) => {
         navigate('/create-ticket', { state: { prefilledCategory: category } });
     };
 
     return (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px' }}>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 sm:gap-4 md:gap-6">
             {actions.map((action, index) => (
-                <div
+                <button
+                    type="button"
                     key={index}
                     onClick={() => handleActionClick(action.category)}
-                    onMouseEnter={() => setHoveredIdx(index)}
-                    onMouseLeave={() => setHoveredIdx(null)}
-                    style={{
-                        background: '#fff',
-                        borderRadius: '20px',
-                        border: `1px solid ${hoveredIdx === index ? '#86efac' : '#e7f5ee'}`,
-                        boxShadow: hoveredIdx === index ? '0 12px 32px rgba(0,0,0,0.1)' : '0 2px 12px rgba(0,0,0,0.05)',
-                        padding: '28px',
-                        cursor: 'pointer',
-                        transition: 'all 0.3s ease',
-                        transform: hoveredIdx === index ? 'translateY(-6px)' : 'translateY(0)',
-                    }}
+                    className={`group text-left bg-white rounded-2xl md:rounded-[20px] border border-emerald-950/[0.06] ${action.accentRing} shadow-xs hover:shadow-lg p-4 md:p-7 cursor-pointer transition-all duration-200 active:scale-[0.98] md:hover:-translate-y-1 flex md:flex-col items-center md:items-start gap-3.5 md:gap-0`}
                 >
-                    <div style={{
-                        width: '48px', height: '48px', borderRadius: '14px', padding: '12px',
-                        background: action.iconBg, display: 'flex', alignItems: 'center',
-                        justifyContent: 'center', marginBottom: '16px', color: action.iconColor,
-                    }}>
-                        <action.icon size={24} />
+                    <div
+                        className={`w-11 h-11 md:w-12 md:h-12 rounded-2xl ${action.iconBg} ${action.iconColor} flex items-center justify-center shrink-0 md:mb-4 transition-transform group-hover:scale-105`}
+                    >
+                        <action.icon size={22} />
                     </div>
 
-                    <h3 style={{ fontSize: '17px', fontWeight: 600, color: '#111827', marginBottom: '8px' }}>{action.title}</h3>
-                    <p style={{ fontSize: '14px', color: '#6b7280', lineHeight: 1.6, marginBottom: '20px' }}>
-                        {action.description}
-                    </p>
+                    <div className="flex-1 min-w-0">
+                        <h3 className="text-[15px] md:text-[17px] font-bold text-slate-900 md:mb-2 truncate">
+                            {action.title}
+                        </h3>
+                        <p className="text-xs md:text-sm text-slate-500 leading-snug md:leading-relaxed line-clamp-2 md:mb-5">
+                            {action.description}
+                        </p>
+                    </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#16a34a', fontWeight: 600, fontSize: '13px' }}>
+                    <div className="md:hidden w-8 h-8 rounded-full bg-slate-50 text-slate-400 group-hover:text-emerald-600 flex items-center justify-center shrink-0">
+                        <ChevronRight size={16} />
+                    </div>
+
+                    <div className="hidden md:flex items-center gap-1.5 text-emerald-600 font-semibold text-[13px]">
                         Start Request →
                     </div>
-                </div>
+                </button>
             ))}
         </div>
     );
 };
 
 export default QuickActions;
-

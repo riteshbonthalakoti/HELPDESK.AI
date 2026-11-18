@@ -1,50 +1,50 @@
 import React from 'react';
-import { TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { TrendingUp, TrendingDown } from "lucide-react";
 
 /**
- * Reusable StatCard for Admin Metrics
+ * Reusable StatCard for Admin Metrics — tuned for 2x2 mobile bento grids and 4-column desktop rows.
  */
 const StatCard = ({ label, value, subtitle, icon: Icon, trend, color = 'indigo', customIcon }) => {
     const semanticColors = {
-        indigo: { bg: '#EEF2FF', text: '#6366f1' },
-        amber: { bg: '#FFF7ED', text: '#f97316' },
-        emerald: { bg: '#F0FDF4', text: '#16a34a' },
-        red: { bg: '#EFF6FF', text: '#3b82f6' },
-        slate: { bg: '#F8FAFC', text: '#64748B' }
+        indigo: { bg: '#EEF2FF', text: '#6366f1', ring: 'border-indigo-100/80' },
+        amber: { bg: '#FFF7ED', text: '#f97316', ring: 'border-amber-100/80' },
+        emerald: { bg: '#F0FDF4', text: '#16a34a', ring: 'border-emerald-100/80' },
+        red: { bg: '#FEF2F2', text: '#dc2626', ring: 'border-red-100/80' },
+        slate: { bg: '#F8FAFC', text: '#64748B', ring: 'border-slate-100' }
     };
     const currentStyle = semanticColors[color] || semanticColors.slate;
 
     return (
-        <div style={{
-            background: '#ffffff', borderRadius: '16px', border: '1px solid #F0FDF4',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)',
-            padding: '24px 28px', transition: 'all 0.3s ease', position: 'relative', overflow: 'hidden'
-        }} className="hover:shadow-lg hover:-translate-y-1 group">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div>
-                    <p style={{ fontSize: '11px', color: '#9ca3af', letterSpacing: '0.1em', fontWeight: 600, textTransform: 'uppercase', marginBottom: '8px' }}>
+        <div
+            className={`bg-white rounded-2xl border ${currentStyle.ring} p-4 sm:p-5 md:p-6 shadow-xs hover:shadow-lg transition-all duration-200 active:scale-[0.98] md:hover:-translate-y-1 group relative overflow-hidden h-full`}
+        >
+            <div className="flex justify-between items-start gap-2">
+                <div className="min-w-0 flex-1">
+                    <p className="text-[10px] sm:text-[11px] text-slate-400 tracking-[0.08em] sm:tracking-[0.1em] font-bold uppercase mb-1.5 truncate">
                         {label}
                     </p>
-                    <div className="flex items-baseline gap-2">
-                        <p style={{ fontSize: '36px', fontWeight: 800, color: '#0f1f12', lineHeight: 1, letterSpacing: '-0.03em', margin: '8px 0 6px' }}>
+                    <div className="flex items-baseline gap-1.5 sm:gap-2">
+                        <p className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-[#0f1f12] leading-none tracking-tight tabular-nums my-1">
                             {value}
                         </p>
                         {trend && (
-                            <span className={`text-[11px] font-bold flex items-center gap-0.5 ${trend.startsWith('+') ? 'text-emerald-500' : 'text-red-500'}`}>
+                            <span className={`text-[10px] sm:text-[11px] font-bold inline-flex items-center gap-0.5 ${trend.startsWith('+') ? 'text-emerald-500' : 'text-red-500'}`}>
                                 {trend.startsWith('+') ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
                                 {trend}
                             </span>
                         )}
                     </div>
-                    {subtitle && <p style={{ fontSize: '12px', color: '#9ca3af' }}>{subtitle}</p>}
+                    {subtitle && (
+                        <p className="text-[11px] sm:text-xs text-slate-400 font-medium truncate mt-1">
+                            {subtitle}
+                        </p>
+                    )}
                 </div>
-                <div style={{
-                    background: currentStyle.bg, color: currentStyle.text,
-                    padding: '10px', borderRadius: '12px', width: '40px', height: '40px',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    transition: 'transform 0.5s ease'
-                }} className="group-hover:scale-110">
-                    {customIcon || (Icon && <Icon size={20} />)}
+                <div
+                    style={{ background: currentStyle.bg, color: currentStyle.text }}
+                    className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 transition-transform duration-300 group-hover:scale-110"
+                >
+                    {customIcon || (Icon && <Icon size={18} />)}
                 </div>
             </div>
         </div>

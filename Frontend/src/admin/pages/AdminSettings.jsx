@@ -1,22 +1,28 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
     Settings,
     Cpu,
     Inbox,
     Bell,
     Save,
-    ShieldCheck
+    ShieldCheck,
+    Mail
 } from 'lucide-react';
 import useAdminStore from '../store/adminStore';
+import useAuthStore from '../../store/authStore';
 import { Card, CardContent } from "../../components/ui/card";
 import { Select } from "../../components/ui/select";
+import EmailChangeModal from "../../components/shared/EmailChangeModal";
 
 /**
  * AdminSettings Page
- * Comprehensive configuration for system parameters, AI thresholds, and notifications.
+ * Comprehensive configuration for account email verification, system parameters, AI thresholds, and notifications.
  */
 const AdminSettings = () => {
     const { settings, updateSettings } = useAdminStore();
+    const { profile, user } = useAuthStore();
+    const [showEmailModal, setShowEmailModal] = useState(false);
+    const currentEmail = profile?.email || user?.email || '';
 
     // Handlers
     const handleChange = (key, value) => {
@@ -24,28 +30,57 @@ const AdminSettings = () => {
     };
 
     return (
-        <div className="max-w-4xl mx-auto py-6 space-y-10 pb-20 animate-in fade-in duration-700">
+        <div className="max-w-4xl mx-auto py-2 sm:py-6 space-y-6 sm:space-y-10 pb-8 sm:pb-20 animate-in fade-in duration-500">
             {/* 1. Header Area */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 sm:gap-6">
                 <div>
-                    <h1 className="text-3xl font-black text-slate-900 tracking-tight italic uppercase flex items-center gap-3">
-                        <Settings size={28} className="text-indigo-600" /> Settings
+                    <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight italic uppercase flex items-center gap-2.5 sm:gap-3">
+                        <Settings size={24} className="text-indigo-600 sm:w-7 sm:h-7" /> Settings
                     </h1>
-                    <p className="text-sm font-bold text-slate-400 mt-1 flex items-center gap-2 uppercase tracking-[0.2em]">
+                    <p className="text-xs sm:text-sm font-bold text-slate-400 mt-1 flex items-center gap-2 uppercase tracking-[0.16em] sm:tracking-[0.2em]">
                         <ShieldCheck size={14} className="text-emerald-500" /> Administrator Account
                     </p>
                 </div>
             </div>
 
-            <div className="space-y-8">
-                {/* 2. System Settings (AI Parameters) */}
-                <Card className="border-none shadow-2xl shadow-slate-200/40 rounded-[2rem] overflow-hidden bg-white">
-                    <div className="px-8 py-6 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
-                        <h3 className="text-sm font-black uppercase italic tracking-tight flex items-center gap-3">
-                            <Cpu size={18} className="text-indigo-400" /> AI Settings
+            <div className="space-y-5 sm:space-y-8">
+                {/* 1b. Account & Verified Gmail Settings */}
+                <Card className="border-none shadow-lg sm:shadow-2xl shadow-slate-200/40 rounded-2xl sm:rounded-[2rem] overflow-hidden bg-white">
+                    <div className="px-5 sm:px-8 py-4 sm:py-6 bg-gradient-to-r from-slate-900 to-emerald-950 text-white flex items-center justify-between border-b border-slate-800">
+                        <h3 className="text-xs sm:text-sm font-black uppercase italic tracking-tight flex items-center gap-2.5 sm:gap-3">
+                            <Mail size={17} className="text-emerald-400 shrink-0" /> Account Email / Gmail Verification
                         </h3>
                     </div>
-                    <CardContent className="p-8 space-y-8">
+                    <CardContent className="p-5 sm:p-8 flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
+                        <div className="space-y-1.5 min-w-0">
+                            <h4 className="text-[11px] sm:text-xs font-black text-slate-700 uppercase tracking-widest">
+                                Registered Company Admin Email
+                            </h4>
+                            <p className="text-sm font-mono font-bold text-slate-900 break-all">
+                                {currentEmail || 'Not configured'}
+                            </p>
+                            <p className="text-xs text-slate-500 leading-relaxed">
+                                Switch your {profile?.company || 'RITESH PVT LTD'} email directly using a 6-digit OTP sent to your new email.
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setShowEmailModal(true)}
+                            className="w-full md:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-600/20 active:scale-[0.98] transition shrink-0 cursor-pointer"
+                        >
+                            <Mail size={15} /> Change &amp; Verify Email
+                        </button>
+                    </CardContent>
+                </Card>
+
+                {/* 2. System Settings (AI Parameters) */}
+                <Card className="border-none shadow-lg sm:shadow-2xl shadow-slate-200/40 rounded-2xl sm:rounded-[2rem] overflow-hidden bg-white">
+                    <div className="px-5 sm:px-8 py-4 sm:py-6 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
+                        <h3 className="text-xs sm:text-sm font-black uppercase italic tracking-tight flex items-center gap-2.5 sm:gap-3">
+                            <Cpu size={17} className="text-indigo-400" /> AI Settings
+                        </h3>
+                    </div>
+                    <CardContent className="p-5 sm:p-8 space-y-6 sm:space-y-8">
                         {/* AI Confidence Threshold */}
                         <div className="space-y-4">
                             <div className="flex justify-between items-center">
@@ -170,6 +205,12 @@ const AdminSettings = () => {
                     </CardContent>
                 </Card>
             </div>
+
+            <EmailChangeModal
+                isOpen={showEmailModal}
+                onClose={() => setShowEmailModal(false)}
+                currentEmail={currentEmail}
+            />
         </div>
     );
 };

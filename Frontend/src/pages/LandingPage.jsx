@@ -348,25 +348,25 @@ export default function LandingPage() {
             </nav>
 
             {/* ==================== HERO ==================== */}
-            <section className="relative pt-12 md:pt-20 pb-20 md:pb-32 overflow-hidden">
+            <section className="relative pt-8 sm:pt-14 md:pt-20 pb-14 sm:pb-20 md:pb-32 overflow-hidden">
                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[300px] md:h-[600px] bg-gradient-to-b from-green-50/80 to-transparent pointer-events-none -z-10" />
 
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
-                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-100 text-emerald-700 text-xs font-bold uppercase tracking-wider mb-8">
-                        <Activity className="w-3 h-3" />
-                        <span>AI-Powered Helpdesk Automation · Made in India 🇮🇳</span>
+                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-100 text-emerald-700 text-[11px] sm:text-xs font-bold uppercase tracking-wider mb-5 sm:mb-8">
+                        <Activity className="w-3 h-3 shrink-0" />
+                        <span>AI-Powered Helpdesk · Made in India 🇮🇳</span>
                     </div>
 
-                    <h1 className="text-4xl sm:text-5xl md:text-7xl font-extrabold text-gray-900 tracking-tight mb-6 leading-[1.1]">
+                    <h1 className="text-[34px] sm:text-5xl md:text-7xl font-extrabold text-gray-900 tracking-tight mb-4 sm:mb-6 leading-[1.08]">
                         Your IT Helpdesk,<br />
                         <span className="text-emerald-700">Fully Automated.</span>
                     </h1>
 
-                    <p className="max-w-2xl mx-auto text-lg md:text-xl text-gray-500 mb-10 leading-relaxed">
+                    <p className="max-w-2xl mx-auto text-base sm:text-lg md:text-xl text-gray-500 mb-7 sm:mb-10 leading-relaxed px-1">
                         Turn messy user complaints into structured, categorized, and prioritized support tickets — instantly. No manual triage. No missed urgencies.
                     </p>
 
-                    <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-6">
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 mb-10 sm:mb-12">
                         <button
                             onClick={() => navigate('/admin-signup')}
                             className="w-full sm:w-auto px-8 py-4 bg-emerald-900 text-white rounded-xl font-bold shadow-xl shadow-emerald-900/25 hover:bg-emerald-800 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 text-base"

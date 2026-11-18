@@ -43,6 +43,20 @@ class TicketEmailContext:
 
 
 @dataclass
+class EmailChangeEmailContext:
+    """Data needed to render a verified email-change confirmation email."""
+
+    recipient_email: str
+    old_email: str
+    otp_code: str
+    verification_url: str = ""
+    recipient_name: str = ""
+    company_name: str = "RITESH PVT LTD"
+    account_role: str = "User"
+    expires_minutes: int = 30
+
+
+@dataclass
 class EmailDeliveryResult:
     """Normalized result returned by all delivery backends."""
 
@@ -159,8 +173,24 @@ class EmailService:
         from_name: Optional[str] = None,
         app_base_url: Optional[str] = None,
     ):
-        self.provider = (provider or os.getenv("EMAIL_PROVIDER", "disabled")).lower()
-        self.from_email = from_email or os.getenv("FROM_EMAIL", "")
+        explicit_provider = (provider or os.getenv("EMAIL_PROVIDER", "")).strip().lower()
+        if explicit_provider and explicit_provider not in {"auto"}:
+            self.provider = explicit_provider
+        elif os.getenv("RESEND_API_KEY", "").strip():
+            self.provider = "resend"
+        elif os.getenv("SMTP_HOST", "").strip() and os.getenv("SMTP_USER", "").strip():
+            self.provider = "smtp"
+        elif os.getenv("SENDGRID_API_KEY", "").strip():
+            self.provider = "sendgrid"
+        else:
+            self.provider = "disabled"
+
+        default_from = (
+            os.getenv("FROM_EMAIL", "").strip()
+            or os.getenv("SMTP_USER", "").strip()
+            or ("onboarding@resend.dev" if self.provider == "resend" else "")
+        )
+        self.from_email = from_email or default_from
         self.from_name = from_name or os.getenv("FROM_NAME", "HELPDESK.AI")
         self.app_base_url = (app_base_url or os.getenv("APP_BASE_URL", "")).rstrip("/")
         self.jinja_env = Environment(autoescape=select_autoescape(["html", "xml"]))
@@ -197,6 +227,90 @@ class EmailService:
             f"{ticket_url}\n"
         )
         return subject, html, text
+
+    def build_email_change_email(self, context: EmailChangeEmailContext) -> tuple[str, str, str]:
+        """Render the branded OTP email-change verification HTML and plain-text email."""
+        from pathlib import Path
+
+        subject = f"{context.otp_code} is your HELPDESK.AI verification code"
+        template_path = Path(__file__).resolve().parent.parent / "templates" / "email_change_verification.html"
+        if template_path.exists():
+            template = self.jinja_env.from_string(template_path.read_text(encoding="utf-8"))
+        else:
+            template = self.jinja_env.from_string(
+                "<p>Hi {{ recipient_name }}, your 6-digit verification code is <strong>{{ otp_code }}</strong>.</p>"
+            )
+
+        html = template.render(
+            recipient_name=context.recipient_name,
+            company_name=context.company_name,
+            account_role=context.account_role,
+            old_email=context.old_email,
+            new_email=context.recipient_email,
+            otp_code=context.otp_code,
+            expires_minutes=context.expires_minutes,
+        )
+        text = (
+            f"HELPDESK.AI — {context.company_name}\n\n"
+            f"Hi {context.recipient_name or 'there'},\n\n"
+            f"Your 6-digit verification code to switch your email to {context.recipient_email} is:\n\n"
+            f"    {context.otp_code}\n\n"
+            f"This code expires in {context.expires_minutes} minutes.\n"
+            "If you did not request this email change, you can safely ignore this message.\n"
+        )
+        return subject, html, text
+
+    def send_email_change_verification(
+        self, context: EmailChangeEmailContext
+    ) -> EmailDeliveryResult:
+        """Send a verification email to the user's requested new email address."""
+        if not context.recipient_email:
+            return EmailDeliveryResult(False, self.provider, skipped=True, reason="missing_recipient_email")
+
+        subject, html, text = self.build_email_change_email(context)
+
+        if self.provider == "smtp":
+            return self._send_smtp(context.recipient_email, subject, html, text)
+        if self.provider == "sendgrid":
+            return self._send_sendgrid(context.recipient_email, subject, html, text)
+        if self.provider == "resend":
+            return self._send_resend(context.recipient_email, subject, html, text)
+
+        return EmailDeliveryResult(
+            False,
+            self.provider or "disabled",
+            skipped=True,
+            reason="email_provider_disabled",
+        )
+
+    def _send_resend(self, recipient_email: str, subject: str, html: str, text: str) -> EmailDeliveryResult:
+        api_key = os.getenv("RESEND_API_KEY", "")
+        if not api_key or not self.from_email:
+            return EmailDeliveryResult(False, "resend", skipped=True, reason="resend_not_configured")
+
+        payload = {
+            "from": f"{self.from_name} <{self.from_email}>",
+            "to": [recipient_email],
+            "subject": subject,
+            "html": html,
+            "text": text,
+        }
+        request = urllib.request.Request(
+            "https://api.resend.com/emails",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=20) as response:
+                body = json.loads(response.read().decode("utf-8") or "{}")
+                return EmailDeliveryResult(True, "resend", message_id=body.get("id"))
+        except urllib.error.HTTPError as exc:
+            logger.error("Resend delivery failed: status=%s reason=%s", exc.code, exc.reason)
+            raise
 
     def send_ticket_email(self, context: TicketEmailContext) -> EmailDeliveryResult:
         if not context.recipient_email:

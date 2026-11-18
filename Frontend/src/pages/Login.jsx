@@ -179,26 +179,34 @@ function Login() {
 
       {/* ── Right Panel ── */}
       <div
-        className="flex w-full lg:w-1/2 items-center justify-center p-6 relative"
+        className="flex flex-col w-full lg:w-1/2 min-h-[100dvh] items-center justify-center p-4 sm:p-6 relative"
         style={{ background: '#ffffff', borderLeft: '1px solid #f0fdf4' }}
       >
-        {/* Back Button */}
-        <Link
-          to="/"
-          className="absolute top-8 left-8 flex items-center gap-2 transition-all group"
-          style={{ color: '#374151', fontWeight: 500, fontSize: '14px' }}
-          onMouseEnter={(e) => e.currentTarget.style.color = '#16a34a'}
-          onMouseLeave={(e) => e.currentTarget.style.color = '#374151'}
-        >
-          <div className="p-2 rounded-full transition-all" style={{ background: '#f9fafb', border: '1px solid #e5e7eb' }}>
-            <ArrowLeft className="w-4 h-4" />
-          </div>
-          <span>Back to Home</span>
-        </Link>
+        {/* Top Mobile/Desktop Back Bar */}
+        <div className="w-full max-w-md lg:max-w-none lg:absolute lg:top-8 lg:left-8 flex items-center justify-between mb-4 lg:mb-0 pt-safe">
+          <Link
+            to="/"
+            className="flex items-center gap-2 transition-all group"
+            style={{ color: '#374151', fontWeight: 500, fontSize: '14px' }}
+            onMouseEnter={(e) => e.currentTarget.style.color = '#16a34a'}
+            onMouseLeave={(e) => e.currentTarget.style.color = '#374151'}
+          >
+            <div className="p-2 rounded-full transition-all" style={{ background: '#f9fafb', border: '1px solid #e5e7eb' }}>
+              <ArrowLeft className="w-4 h-4" />
+            </div>
+            <span>Back to Home</span>
+          </Link>
 
-        <div className="w-full max-w-md mt-8 lg:mt-0" style={{ padding: '32px' }}>
+          {/* Compact Mobile Brand Pill */}
+          <div className="lg:hidden inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200">
+            <BrainCircuit className="w-4 h-4 text-emerald-600" />
+            <span className="text-xs font-black tracking-tight text-emerald-950">HelpDesk.ai</span>
+          </div>
+        </div>
+
+        <div className="w-full max-w-md bg-white sm:bg-transparent rounded-3xl p-5 sm:p-8 border border-slate-100 sm:border-none shadow-sm sm:shadow-none">
           {/* Header */}
-          <div className="text-center" style={{ marginBottom: '40px' }}>
+          <div className="text-center mb-7 sm:mb-10">
             <h2
               style={{
                 fontFamily: "'Syne', sans-serif",

@@ -1,10 +1,10 @@
 """
-Contributor Compliance & Triage Script for GSSoC '26 — riteshbonthalakoti/HELPDESK.AI
+Contributor Compliance & Triage Script for WSOC 2026 (Winter of Code Social) — riteshbonthalakoti/HELPDESK.AI
 Audits whether PR / Issue authors:
 1. Follow @riteshbonthalakoti
 2. Starred riteshbonthalakoti/HELPDESK.AI
 3. Forked riteshbonthalakoti/HELPDESK.AI
-4. Target the 'gssoc' branch (for PRs)
+4. Target the 'main' branch (for PRs)
 5. Register employee account under RITESH PVT LTD
 """
 
@@ -16,7 +16,13 @@ from pathlib import Path
 
 REPO = "riteshbonthalakoti/HELPDESK.AI"
 ADMIN = "riteshbonthalakoti"
-AUDIT_MARKER = "Contributor Onboarding & Compliance Audit (GSSoC 2026)"
+TARGET_BRANCH = "main"
+AUDIT_MARKER = "Contributor Onboarding & Compliance Audit (WSOC 2026)"
+LEGACY_AUDIT_MARKERS = (
+    AUDIT_MARKER,
+    "Contributor Onboarding & Compliance Audit (GSSoC 2026)",
+)
+
 
 def run_gh(cmd, check=True):
     try:
@@ -26,6 +32,7 @@ def run_gh(cmd, check=True):
         print(f"[ERROR] gh {' '.join(cmd)} failed: {e}", file=sys.stderr)
         return ""
 
+
 def run_gh_json(cmd):
     output = run_gh(cmd, check=False)
     if not output:
@@ -34,6 +41,7 @@ def run_gh_json(cmd):
         return json.loads(output)
     except Exception:
         return []
+
 
 def get_paginated(endpoint):
     items = []
@@ -47,6 +55,7 @@ def get_paginated(endpoint):
             break
         page += 1
     return items
+
 
 def load_network_sets():
     print(f"Fetching followers of @{ADMIN}...")
@@ -64,31 +73,33 @@ def load_network_sets():
     print(f"Loaded {len(followers)} followers, {len(stargazers)} stargazers, {len(forkers)} forks.")
     return followers, stargazers, forkers
 
+
 def generate_comment_body(author, missing, is_pr=False, base=None):
     follow_checked = "x" if "Follow Project Admin" not in missing else " "
     star_checked = "x" if "Star Repository" not in missing else " "
     fork_checked = "x" if "Fork Repository" not in missing else " "
-    branch_checked = "x" if not any("Target gssoc" in m for m in missing) else " "
+    branch_checked = "x" if not any(f"Target {TARGET_BRANCH}" in m for m in missing) else " "
 
     body = f"""### 📋 {AUDIT_MARKER}
 
 Hello @{author}! Thank you for your contribution to **HELPDESK.AI**.
 
-Before this {"pull request can be merged" if is_pr else "issue can be assigned/approved"} under **GSSoC 2026**, please ensure all contributor onboarding requirements from our [Contributor Onboarding Guide](https://github.com/riteshbonthalakoti/HELPDESK.AI/blob/gssoc/docs/GSSoC_DEV_ONBOARDING.md) are complete:
+Before this {"pull request can be merged" if is_pr else "issue can be assigned/approved"} under **WSOC 2026**, please ensure all contributor onboarding requirements from our [Contributor Onboarding Guide](https://github.com/riteshbonthalakoti/HELPDESK.AI/blob/main/docs/WSOC_DEV_ONBOARDING.md) are complete:
 
 - [{follow_checked}] **Follow Maintainer**: Follow [@{ADMIN}](https://github.com/{ADMIN}) on GitHub.
 - [{star_checked}] **Star Repository**: Star [{REPO}](https://github.com/{REPO}).
 - [{fork_checked}] **Fork Repository**: Fork the repository to your GitHub account.
 """
     if is_pr:
-        body += f"- [{branch_checked}] **Target Branch**: Pull requests must target branch `gssoc` (currently targeting `{base}`).\n"
+        body += f"- [{branch_checked}] **Target Branch**: Pull requests must target branch `{TARGET_BRANCH}` (currently targeting `{base}`).\n"
     else:
-        body += "- [ ] **Target Branch**: Ensure any future Pull Request targets the `gssoc` branch (not `main`).\n"
+        body += f"- [ ] **Target Branch**: Ensure any future Pull Request targets the `{TARGET_BRANCH}` branch.\n"
 
-    body += """- [ ] **Live Portal Signup**: Register your employee test account under company **RITESH PVT LTD** on the [HelpDesk AI Portal](https://helpdeskaiv1.vercel.app/signup).
+    body += """- [ ] **Live Portal Signup**: Register your employee test account under company **RITESH PVT LTD** on the [HelpDesk AI Portal](https://helpdeskai1918.vercel.app/signup).
 
 Once you have completed these steps, reply here so our maintainer team can proceed with review and approval! 🚀"""
     return body
+
 
 def check_item_already_commented(item_type, item_number):
     comments_raw = run_gh([item_type, "view", str(item_number), "--repo", REPO, "--json", "comments"], check=False)
@@ -96,11 +107,13 @@ def check_item_already_commented(item_type, item_number):
         try:
             data = json.loads(comments_raw)
             for c in data.get("comments", []):
-                if AUDIT_MARKER in c.get("body", ""):
+                body = c.get("body", "")
+                if any(marker in body for marker in LEGACY_AUDIT_MARKERS):
                     return True
         except Exception:
             pass
     return False
+
 
 def post_comment(item_type, item_number, body):
     print(f"Posting compliance reminder on {item_type} #{item_number}...")
@@ -110,6 +123,7 @@ def post_comment(item_type, item_number, body):
         print(f"Successfully posted comment on {item_type} #{item_number}")
     else:
         print(f"[ERROR] Failed to post comment on {item_type} #{item_number}: {res.stderr}")
+
 
 def triage_pr(pr_number, followers, stargazers, forkers, apply_comment=False):
     pr_data = run_gh_json(["pr", "view", str(pr_number), "--repo", REPO,
@@ -129,7 +143,7 @@ def triage_pr(pr_number, followers, stargazers, forkers, apply_comment=False):
     is_following = author_lower in followers
     has_starred = author_lower in stargazers
     has_forked = author_lower in forkers
-    correct_branch = base == "gssoc"
+    correct_branch = base == TARGET_BRANCH
 
     compliant = is_following and has_starred and has_forked and correct_branch
     missing = []
@@ -140,7 +154,7 @@ def triage_pr(pr_number, followers, stargazers, forkers, apply_comment=False):
     if not has_forked:
         missing.append("Fork Repository")
     if not correct_branch:
-        missing.append(f"Target gssoc branch (currently {base})")
+        missing.append(f"Target {TARGET_BRANCH} branch (currently {base})")
 
     status_str = "[PASS]" if compliant else "[MISSING: " + ", ".join(missing) + "]"
     print(f"PR #{pr_number:<4} by @{author:<20} | {status_str}")
@@ -160,6 +174,7 @@ def triage_pr(pr_number, followers, stargazers, forkers, apply_comment=False):
         "compliant": compliant,
         "missing": missing
     }
+
 
 def triage_issue(issue_number, followers, stargazers, forkers, apply_comment=False):
     issue_data = run_gh_json(["issue", "view", str(issue_number), "--repo", REPO,
@@ -206,8 +221,9 @@ def triage_issue(issue_number, followers, stargazers, forkers, apply_comment=Fal
         "missing": missing
     }
 
+
 def main():
-    parser = argparse.ArgumentParser(description="Contributor Compliance Triage for GSSoC '26")
+    parser = argparse.ArgumentParser(description="Contributor Compliance Triage for WSOC 2026")
     parser.add_argument("--pr", type=int, help="Triage a specific Pull Request number")
     parser.add_argument("--issue", type=int, help="Triage a specific Issue number")
     parser.add_argument("--apply", "--comment", action="store_true", help="Post comment if non-compliant")
@@ -224,7 +240,7 @@ def main():
         return
 
     # Full audit
-    print("\n=== Running Full Contributor Compliance Audit ===")
+    print("\n=== Running Full Contributor Compliance Audit (WSOC 2026) ===")
     prs = run_gh_json(["pr", "list", "--repo", REPO, "--state", "open", "--limit", "100",
                        "--json", "number,title,author,baseRefName,headRefName,url"])
     results = []
@@ -240,6 +256,7 @@ def main():
     with open(report_file, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2)
     print(f"\nReport written to {report_file.resolve()}")
+
 
 if __name__ == "__main__":
     main()

@@ -127,90 +127,112 @@ const AdminDashboard = () => {
     }, [tickets]);
 
     return (
-        <div style={{ background: '#f8faf9', minHeight: '100vh', paddingBottom: '40px' }} className="space-y-10 -m-6 p-6 md:-m-10 md:p-10">
-            {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                    <h1 style={{ fontFamily: 'Syne, sans-serif', fontSize: '24px', fontWeight: 800, color: '#0f1f12', letterSpacing: '-0.02em', margin: 0 }}>
+        <div className="space-y-6 md:space-y-9 pb-6">
+            {/* Header — Sleek Dark Command Banner on Mobile, Crisp Editorial Header on Desktop */}
+            <div className="rounded-3xl md:rounded-none p-5 md:p-0 bg-gradient-to-br from-[#0b1f17] via-[#0f2c1f] to-[#064e3b] md:bg-none text-white md:text-[#0f1f12] shadow-lg shadow-emerald-950/15 md:shadow-none flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 relative overflow-hidden">
+                <div className="md:hidden pointer-events-none absolute -right-10 -top-10 w-36 h-36 rounded-full bg-emerald-400/20 blur-2xl" />
+                <div className="relative z-10">
+                    <p className="md:hidden text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-300/90 mb-1">
+                        {profile?.company || 'RITESH PVT LTD'} · Admin Console
+                    </p>
+                    <h1
+                        className="text-2xl sm:text-[26px] font-extrabold tracking-tight m-0 text-white md:text-[#0f1f12]"
+                        style={{ fontFamily: 'Syne, sans-serif' }}
+                    >
                         Dashboard
                     </h1>
-                    <p style={{ color: '#6b7280', fontSize: '13px', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 500 }}>
-                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }}></span>
+                    <p className="text-emerald-100/80 md:text-slate-500 text-xs sm:text-[13px] mt-1 flex items-center gap-2 font-medium">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 md:bg-green-500 inline-block animate-pulse" />
                         Real-time updates active
                     </p>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 16px', background: '#F0FDF4', border: '1.5px solid #BBF7D0', borderRadius: '100px' }}>
-                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block', animation: 'pulse-dot 2s infinite' }}></span>
-                    <span style={{ fontSize: '11px', fontWeight: 700, color: '#15803d', letterSpacing: '0.08em', textTransform: 'uppercase' }}>System Active</span>
+                <div className="relative z-10 self-start sm:self-auto inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-400/15 border border-emerald-400/30 md:bg-[#F0FDF4] md:border-[#BBF7D0]">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 md:bg-green-500 inline-block" style={{ animation: 'pulse-dot 2s infinite' }} />
+                    <span className="text-[10px] sm:text-[11px] font-bold text-emerald-200 md:text-[#15803d] tracking-[0.08em] uppercase">
+                        System Active
+                    </span>
                 </div>
             </div>
 
-            {/* KPIs */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <button onClick={() => navigate('/admin/tickets')} className="text-left group focus:outline-none">
+            {/* KPIs — Dense 2x2 Bento Grid on Mobile, 4-Column Row on Desktop */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5 md:gap-6">
+                <button type="button" onClick={() => navigate('/admin/tickets')} className="text-left group focus:outline-none">
                     <StatCard label="Total Tickets" value={metrics.total} color="indigo" subtitle="Lifetime generated" customIcon={<TicketIcon />} />
                 </button>
-                <button onClick={() => navigate('/admin/tickets')} className="text-left group focus:outline-none">
+                <button type="button" onClick={() => navigate('/admin/tickets')} className="text-left group focus:outline-none">
                     <StatCard label="Active Tickets" value={metrics.active} color="amber" subtitle="Need attention" customIcon={<ActivityIcon />} />
                 </button>
-                <button onClick={() => navigate('/admin/tickets?filter=auto')} className="text-left group focus:outline-none">
-                    <StatCard label="AI Auto-Resolved" value={metrics.autoResolved} color="emerald" subtitle="Resolved by AI" customIcon={<CpuIcon />} />
+                <button type="button" onClick={() => navigate('/admin/tickets?filter=auto')} className="text-left group focus:outline-none">
+                    <StatCard label="Auto-Resolved" value={metrics.autoResolved} color="emerald" subtitle="Resolved by AI" customIcon={<CpuIcon />} />
                 </button>
-                <button onClick={() => navigate('/admin/tickets?filter=human')} className="text-left group focus:outline-none">
-                    <StatCard label="Escalated Tickets" value={metrics.humanEscalated} color="red" subtitle="Requires support agent" customIcon={<UsersIcon />} />
+                <button type="button" onClick={() => navigate('/admin/tickets?filter=human')} className="text-left group focus:outline-none">
+                    <StatCard label="Escalated" value={metrics.humanEscalated} color="red" subtitle="Needs agent" customIcon={<UsersIcon />} />
                 </button>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10">
                 {/* Recent Activity */}
-                <div className="lg:col-span-8 space-y-6">
-                    <div className="flex items-center justify-between px-2">
-                        <h2 style={{ fontFamily: 'Syne, sans-serif', fontSize: '15px', fontWeight: 700, color: '#0f1f12', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div className="lg:col-span-8 space-y-4 sm:space-y-5">
+                    <div className="flex items-center justify-between px-1">
+                        <h2 style={{ fontFamily: 'Syne, sans-serif' }} className="text-[15px] font-bold text-[#0f1f12] flex items-center gap-2">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
                             Recent Tickets
                         </h2>
+                        <button
+                            type="button"
+                            onClick={() => navigate('/admin/tickets')}
+                            className="text-xs font-bold text-emerald-600 hover:text-emerald-700"
+                        >
+                            View All →
+                        </button>
                     </div>
-                    <div style={{ background: '#fff', borderRadius: '20px', border: '1px solid #f0fdf4', boxShadow: '0 2px 16px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
+                    <div className="bg-white rounded-3xl md:rounded-[20px] border border-emerald-950/[0.06] shadow-xs md:shadow-[0_2px_16px_rgba(0,0,0,0.05)] overflow-hidden">
                         <TicketTable tickets={tickets} limit={10} isLoading={isLoading} />
                     </div>
                 </div>
 
                 {/* AI System Health */}
-                <div className="lg:col-span-4 space-y-6">
-                    <div className="px-2 flex items-center justify-between">
-                        <h2 style={{ fontFamily: 'Syne, sans-serif', fontSize: '15px', fontWeight: 700, color: '#0f1f12', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div className="lg:col-span-4 space-y-4 sm:space-y-5">
+                    <div className="px-1 flex items-center justify-between">
+                        <h2 style={{ fontFamily: 'Syne, sans-serif' }} className="text-[15px] font-bold text-[#0f1f12] flex items-center gap-2">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
                             AI Status
                         </h2>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '100px', padding: '3px 10px' }}>
-                            <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#22c55e', display: 'inline-block', animation: 'pulse-dot 2s infinite' }}></span>
-                            <span style={{ fontSize: '10px', fontWeight: 700, color: '#15803d' }}>LIVE SYNC</span>
+                        <div className="inline-flex items-center gap-1.5 bg-[#F0FDF4] border border-[#BBF7D0] rounded-full px-2.5 py-0.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" style={{ animation: 'pulse-dot 2s infinite' }} />
+                            <span className="text-[10px] font-bold text-[#15803d]">LIVE SYNC</span>
                         </div>
                     </div>
-                    <div style={{ background: '#fff', borderRadius: '20px', border: '1px solid #f0fdf4', padding: '24px' }}>
-                        <div className="space-y-4">
+                    <div className="bg-white rounded-3xl md:rounded-[20px] border border-emerald-950/[0.06] p-4 sm:p-6 shadow-xs">
+                        <div className="space-y-3">
                             {aiSubsystems.map((sub, idx) => (
-                                <div key={idx} className="flex items-center justify-between p-4 rounded-2xl border border-gray-100 transition-all cursor-default hover:bg-white hover:border-green-100" style={{ background: '#f8faf9' }}>
-                                    <div className="flex items-center gap-3">
-                                        <div style={{ background: aiIconMap[idx].bg, color: aiIconMap[idx].color, width: 36, height: 36, borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <div key={idx} className="flex items-center justify-between gap-2 p-3.5 sm:p-4 rounded-2xl border border-gray-100 bg-[#f8faf9] transition-all hover:bg-white hover:border-green-100">
+                                    <div className="flex items-center gap-3 min-w-0">
+                                        <div style={{ background: aiIconMap[idx].bg, color: aiIconMap[idx].color }} className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0">
                                             {aiIconMap[idx].icon}
                                         </div>
-                                        <div>
-                                            <p style={{ fontSize: '13px', fontWeight: 600, color: '#111827', margin: 0 }}>{sub.name}</p>
-                                            <p style={{ fontSize: '11px', color: '#6b7280', marginTop: '1px' }}>Status: {sub.latency}</p>
+                                        <div className="min-w-0">
+                                            <p className="text-[13px] font-semibold text-gray-900 m-0 truncate">{sub.name}</p>
+                                            <p className="text-[11px] text-gray-500 mt-0.5 truncate">{sub.latency}</p>
                                         </div>
                                     </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '3px 10px', background: sub.status === 'Active' ? '#dcfce7' : '#f3f4f6', color: sub.status === 'Active' ? '#15803d' : '#6b7280', border: sub.status === 'Active' ? '1px solid #bbf7d0' : '1px solid #e5e7eb', borderRadius: '100px' }}>
-                                        <div style={{ width: 5, height: 5, borderRadius: '50%', background: sub.status === 'Active' ? '#22c55e' : '#9ca3af' }}></div>
-                                        <span style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase' }}>{sub.status}</span>
+                                    <div
+                                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full shrink-0 border ${
+                                            sub.status === 'Active'
+                                                ? 'bg-emerald-100/80 text-emerald-700 border-emerald-200'
+                                                : 'bg-gray-100 text-gray-500 border-gray-200'
+                                        }`}
+                                    >
+                                        <div className={`w-1.5 h-1.5 rounded-full ${sub.status === 'Active' ? 'bg-emerald-500' : 'bg-gray-400'}`} />
+                                        <span className="text-[10px] font-bold uppercase">{sub.status}</span>
                                     </div>
                                 </div>
                             ))}
-                            <div className="pt-4 mt-4 border-t border-gray-100 flex flex-col items-center gap-2">
-                                <p style={{ fontSize: '10px', color: '#9ca3af', letterSpacing: '0.14em', fontWeight: 600, textTransform: 'uppercase' }}>All systems operating normally</p>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 10px', background: '#f8faf9', borderRadius: '100px', border: '1px solid #e5e7eb' }}>
+                            <div className="pt-4 mt-2 border-t border-gray-100 flex flex-col items-center gap-2">
+                                <p className="text-[10px] text-gray-400 tracking-[0.14em] font-semibold uppercase">All systems operating normally</p>
+                                <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#f8faf9] rounded-full border border-gray-200">
                                     <Activity size={10} color="#9ca3af" />
-                                    <span style={{ fontSize: '9px', fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                                    <span className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider">
                                         Last Synced: {formatTimelineDate(new Date())}
                                     </span>
                                 </div>

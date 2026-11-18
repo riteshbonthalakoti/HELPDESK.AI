@@ -393,14 +393,22 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        "https://helpdeskai1918.vercel.app",
         "https://helpdeskaiv1.vercel.app",
         "http://localhost:5173",
         "http://localhost:3000",
     ],
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+try:
+    from backend.routers.email_change import router as email_change_router
+    app.include_router(email_change_router)
+except Exception as _email_router_err:
+    print(f"[WARNING] Could not register email_change router: {_email_router_err}")
 
 
 # ---------------------------------------------------------------------------

@@ -313,29 +313,10 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-	new_company_id uuid;
-	company_name text := nullif(new.raw_user_meta_data ->> 'company', '');
+	canonical_company_id uuid := '76d16bf6-2ee9-44ad-b64e-ad5ecf0a079b'::uuid;
+	canonical_company_name text := 'RITESH PVT LTD';
 	user_role text := coalesce(nullif(new.raw_user_meta_data ->> 'role', ''), 'user');
 BEGIN
-	IF company_name IS NOT NULL THEN
-		INSERT INTO public.companies (
-			name,
-			admin_id,
-			company_size,
-			industry,
-			website,
-			country
-		) VALUES (
-			company_name,
-			new.id,
-			nullif(new.raw_user_meta_data ->> 'company_size', ''),
-			nullif(new.raw_user_meta_data ->> 'industry', ''),
-			nullif(new.raw_user_meta_data ->> 'website', ''),
-			nullif(new.raw_user_meta_data ->> 'country', '')
-		)
-		RETURNING id INTO new_company_id;
-	END IF;
-
 	INSERT INTO public.profiles (
 		id,
 		email,
@@ -352,8 +333,8 @@ BEGIN
 		new.email,
 		coalesce(nullif(new.raw_user_meta_data ->> 'full_name', ''), 'User'),
 		user_role,
-		company_name,
-		new_company_id,
+		canonical_company_name,
+		canonical_company_id,
 		nullif(new.raw_user_meta_data ->> 'profile_picture', ''),
 		nullif(new.raw_user_meta_data ->> 'phone', ''),
 		nullif(new.raw_user_meta_data ->> 'job_title', ''),
@@ -366,21 +347,19 @@ BEGIN
 		email = EXCLUDED.email,
 		full_name = EXCLUDED.full_name,
 		role = EXCLUDED.role,
-		company = EXCLUDED.company,
-		company_id = COALESCE(EXCLUDED.company_id, profiles.company_id),
+		company = canonical_company_name,
+		company_id = canonical_company_id,
 		profile_picture = EXCLUDED.profile_picture,
 		phone = EXCLUDED.phone,
 		job_title = EXCLUDED.job_title,
 		status = EXCLUDED.status,
 		updated_at = timezone('utc'::text, now());
 
-	IF new_company_id IS NOT NULL THEN
-		INSERT INTO public.user_companies (user_id, company_id, role)
-		VALUES (new.id, new_company_id, 'admin')
-		ON CONFLICT (user_id, company_id) DO UPDATE SET
-			role = EXCLUDED.role,
-			updated_at = timezone('utc'::text, now());
-	END IF;
+	INSERT INTO public.user_companies (user_id, company_id, role)
+	VALUES (new.id, canonical_company_id, CASE WHEN user_role = 'admin' THEN 'admin' ELSE 'member' END)
+	ON CONFLICT (user_id, company_id) DO UPDATE SET
+		role = EXCLUDED.role,
+		updated_at = timezone('utc'::text, now());
 
 	RETURN new;
 END;
@@ -729,6 +708,37 @@ CREATE TRIGGER update_user_feedback_timestamp
 	BEFORE UPDATE ON user_feedback
 	FOR EACH ROW
 	EXECUTE FUNCTION update_timestamp();
+
+CREATE TABLE IF NOT EXISTS public.email_change_requests (
+	id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+	user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+	company_id uuid REFERENCES public.companies(id) ON DELETE SET NULL,
+	old_email text NOT NULL,
+	new_email text NOT NULL,
+	token_hash text NOT NULL UNIQUE,
+	otp_code_hash text NOT NULL,
+	status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'verified', 'expired', 'cancelled')),
+	attempts integer NOT NULL DEFAULT 0,
+	expires_at timestamptz NOT NULL,
+	verified_at timestamptz,
+	created_at timestamptz NOT NULL DEFAULT timezone('utc'::text, now()),
+	updated_at timestamptz NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+ALTER TABLE public.email_change_requests ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Service role full access on email_change_requests" ON public.email_change_requests
+	FOR ALL USING (auth.role() = 'service_role');
+
+CREATE POLICY "Users can view own email change requests" ON public.email_change_requests
+	FOR SELECT USING (auth.uid() = user_id);
+
+CREATE TRIGGER update_email_change_requests_timestamp
+	BEFORE UPDATE ON public.email_change_requests
+	FOR EACH ROW
+	EXECUTE FUNCTION public.update_timestamp();
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.email_change_requests TO authenticated, service_role;
 
 
 

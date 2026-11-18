@@ -78,7 +78,10 @@ function UserLobby() {
         navigate("/login");
     };
 
-    const isRiteshPrivateLtd = profile?.company === "Ritesh Private Limited";
+    const normalizedCompany = (profile?.company || "").trim().toUpperCase();
+    const isRiteshPrivateLtd =
+        normalizedCompany === "RITESH PVT LTD" ||
+        normalizedCompany === "RITESH PRIVATE LIMITED";
     const adminPhone = "918464931322";
     const waMessage = `Hey Ritesh, I just verified my email and I want you to approve this email address. I registered to ${profile?.company || "my company"}. My email is: ${profile?.email}`;
     const whatsappUrl = `https://wa.me/${adminPhone}?text=${encodeURIComponent(waMessage)}`;
