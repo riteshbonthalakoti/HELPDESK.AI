@@ -33,18 +33,48 @@ const safeStorage = {
     },
 };
 
+// Shared singleton AudioContext & user-gesture gate (prevents memory leaks & autoplay spam)
+let sharedAudioCtx = null;
+let hasUserInteracted = false;
+let lastSoundPlayedAt = 0;
+const SOUND_COOLDOWN_MS = 5000;
+
+if (typeof window !== 'undefined') {
+    const unlockAudio = () => {
+        hasUserInteracted = true;
+        if (sharedAudioCtx && sharedAudioCtx.state === 'suspended') {
+            sharedAudioCtx.resume().catch(() => {});
+        }
+        window.removeEventListener('pointerdown', unlockAudio);
+        window.removeEventListener('keydown', unlockAudio);
+    };
+    window.addEventListener('pointerdown', unlockAudio, { once: true, passive: true });
+    window.addEventListener('keydown', unlockAudio, { once: true, passive: true });
+}
+
 /**
  * Web Audio API synthesizer for playing real-time SLA breach alert tones.
- * Uses dual-tone sine wave beeps so no external audio asset files are needed.
+ * Reuses a single shared AudioContext and requires a prior user gesture + cooldown.
  */
 export const playSlaAlertSound = () => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || !hasUserInteracted) return;
+
+    const nowMs = Date.now();
+    if (nowMs - lastSoundPlayedAt < SOUND_COOLDOWN_MS) return;
+    lastSoundPlayedAt = nowMs;
 
     try {
         const AudioCtx = window.AudioContext || window.webkitAudioContext;
         if (!AudioCtx) return;
-        const ctx = new AudioCtx();
 
+        if (!sharedAudioCtx || sharedAudioCtx.state === 'closed') {
+            sharedAudioCtx = new AudioCtx();
+        }
+        if (sharedAudioCtx.state === 'suspended') {
+            sharedAudioCtx.resume().catch(() => {});
+        }
+
+        const ctx = sharedAudioCtx;
         const playTone = (freq, startTime, duration) => {
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
@@ -52,7 +82,7 @@ export const playSlaAlertSound = () => {
             osc.type = 'sine';
             osc.frequency.setValueAtTime(freq, startTime);
 
-            gain.gain.setValueAtTime(0.25, startTime);
+            gain.gain.setValueAtTime(0.2, startTime);
             gain.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
 
             osc.connect(gain);
@@ -60,20 +90,24 @@ export const playSlaAlertSound = () => {
 
             osc.start(startTime);
             osc.stop(startTime + duration);
+            osc.onended = () => {
+                try {
+                    osc.disconnect();
+                    gain.disconnect();
+                } catch {}
+            };
         };
 
         const now = ctx.currentTime;
-        // Two quick urgent pulses: 880Hz (A5) -> 1046.5Hz (C6)
         playTone(880, now, 0.14);
         playTone(1046.5, now + 0.18, 0.22);
-    } catch (e) {
-        console.warn('SLA sound alert unavailable:', e);
+    } catch {
+        // Ignore unavailable audio environments
     }
 };
 
 /**
- * Dispatches an OS desktop browser notification for a breached ticket.
- * @param {Object} ticket 
+ * Dispatches an OS desktop browser notification for a newly breached ticket.
  */
 export const triggerDesktopNotification = (ticket) => {
     if (typeof window === 'undefined' || !('Notification' in window)) return;
@@ -84,35 +118,26 @@ export const triggerDesktopNotification = (ticket) => {
         const priority = (ticket?.priority || 'Critical').toUpperCase();
         const subject = ticket?.subject || ticket?.summary || 'Triage SLA breach requires immediate action';
 
-        new Notification(`🚨 SLA BREACH: Ticket #${tid}`, {
+        new Notification(`SLA BREACH: Ticket #${tid}`, {
             body: `[${priority}] ${subject}\nImmediate response required!`,
-            icon: '/placeholder.svg',
+            icon: '/favicon.png',
             tag: `sla-breach-${tid}`,
         });
-    } catch (e) {
-        console.warn('SLA desktop notification failed:', e);
+    } catch {
+        // Ignore notification errors
     }
 };
 
-/**
- * Zustand store for SLA urgency alerts, audio & desktop notification toggles,
- * and de-duplicated breach tracking.
- */
 export const useSLAStore = create(
     persist(
         (set, get) => ({
-            // Configuration & Toggles
             soundEnabled: true,
             desktopNotificationsEnabled: true,
-
-            // Set of ticket IDs that have already alerted breach
             breachedTicketIds: [],
 
-            // Toggle sound notifications
             toggleSound: () => set((state) => ({ soundEnabled: !state.soundEnabled })),
             setSoundEnabled: (enabled) => set({ soundEnabled: Boolean(enabled) }),
 
-            // Toggle desktop browser notifications
             toggleDesktopNotifications: async () => {
                 const current = get().desktopNotificationsEnabled;
                 if (!current) {
@@ -138,30 +163,26 @@ export const useSLAStore = create(
             setDesktopNotificationsEnabled: (enabled) =>
                 set({ desktopNotificationsEnabled: Boolean(enabled) }),
 
-            /**
-             * Notifies user of an SLA breach for a ticket with sound and/or desktop notification.
-             * De-duplicates so the same ticket doesn't spam alerts.
-             */
             notifyBreach: (ticket) => {
                 if (!ticket) return false;
                 const ticketId = String(ticket.ticket_id || ticket.id || '');
                 if (!ticketId) return false;
 
                 const { breachedTicketIds, soundEnabled, desktopNotificationsEnabled } = get();
-
                 if (breachedTicketIds.includes(ticketId)) {
-                    return false; // Already alerted for this breach
+                    return false;
                 }
 
-                // Register breached ticket
-                set({ breachedTicketIds: [...breachedTicketIds, ticketId] });
+                // Cap tracked list size to prevent unbounded memory growth
+                const nextIds =
+                    breachedTicketIds.length >= 250
+                        ? [...breachedTicketIds.slice(-200), ticketId]
+                        : [...breachedTicketIds, ticketId];
+                set({ breachedTicketIds: nextIds });
 
-                // Play sound if enabled
                 if (soundEnabled) {
                     playSlaAlertSound();
                 }
-
-                // Desktop notification if enabled
                 if (desktopNotificationsEnabled) {
                     triggerDesktopNotification(ticket);
                 }
@@ -169,9 +190,6 @@ export const useSLAStore = create(
                 return true;
             },
 
-            /**
-             * Resets a ticket from the breached list (e.g. if updated/re-opened/priority changed)
-             */
             resetBreachedTicket: (ticketId) => {
                 if (!ticketId) return;
                 const idStr = String(ticketId);
