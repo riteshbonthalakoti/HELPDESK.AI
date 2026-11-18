@@ -14,8 +14,10 @@ import {
     UserCircle,
     Bug,
     Settings,
-    Activity
+    Activity,
+    Mail
 } from "lucide-react";
+import EmailChangeModal from "../../components/shared/EmailChangeModal";
 
 /**
  * MasterAdminLayout — Professional sidebar-based layout for platform oversight.
@@ -31,6 +33,7 @@ function MasterAdminLayout() {
     };
 
     const [pendingCount, setPendingCount] = React.useState(0);
+    const [showEmailModal, setShowEmailModal] = React.useState(false);
 
     React.useEffect(() => {
         const fetchCount = async () => {
@@ -109,7 +112,15 @@ function MasterAdminLayout() {
                     })}
                 </nav>
 
-                <div className="p-4 border-t border-white/5">
+                <div className="p-4 border-t border-white/5 space-y-1.5">
+                    <button
+                        type="button"
+                        onClick={() => setShowEmailModal(true)}
+                        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 transition-all group cursor-pointer"
+                    >
+                        <Mail className="w-5 h-5 text-emerald-400 transition-colors" />
+                        Change Email
+                    </button>
                     <button
                         onClick={handleLogout}
                         className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-400 hover:text-red-400 hover:bg-red-500/5 transition-all group"
@@ -154,6 +165,12 @@ function MasterAdminLayout() {
                     <Outlet />
                 </div>
             </main>
+
+            <EmailChangeModal
+                isOpen={showEmailModal}
+                onClose={() => setShowEmailModal(false)}
+                currentEmail={profile?.email || ""}
+            />
         </div>
     );
 }

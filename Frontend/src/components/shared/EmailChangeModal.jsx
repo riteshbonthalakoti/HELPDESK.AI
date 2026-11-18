@@ -74,29 +74,52 @@ const EmailChangeModal = ({ isOpen, onClose, currentEmail }) => {
 
     setLoading(true);
     try {
-      const headers = await getAuthHeaders();
-      const res = await fetch(`${API_CONFIG.BACKEND_URL}/api/account/email-change/request`, {
-        method: "POST",
-        headers,
-        credentials: "include",
-        body: JSON.stringify({
-          new_email: trimmed,
-          frontend_origin: window.location.origin,
-        }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data.detail || "Unable to send verification email.");
+      let usedBackendOtp = false;
+      try {
+        const headers = await getAuthHeaders();
+        const res = await fetch(`${API_CONFIG.BACKEND_URL}/api/account/email-change/request`, {
+          method: "POST",
+          headers,
+          credentials: "include",
+          body: JSON.stringify({
+            new_email: trimmed,
+            frontend_origin: window.location.origin,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data?.email_sent) {
+          usedBackendOtp = true;
+          setPendingRequest({ new_email: data.new_email, expires_at: data.expires_at });
+          setInfoNote(
+            `Verification email sent to ${data.new_email}. Enter the 6-digit code below or click the link in your inbox.`
+          );
+          setStep("verify");
+          showToast(`Verification email sent to ${data.new_email}`, "success");
+        } else if (res.status === 400 || res.status === 409) {
+          throw new Error(data.detail || "Unable to use that email address.");
+        }
+      } catch (backendErr) {
+        if (backendErr.message && backendErr.message.includes("already registered")) {
+          throw backendErr;
+        }
+        // Fall through to Supabase native verified email-change flow
       }
 
-      setPendingRequest({ new_email: data.new_email, expires_at: data.expires_at });
-      setInfoNote(
-        data.email_sent
-          ? `Verification email sent to ${data.new_email}. Enter the 6-digit code below or click the link in your inbox.`
-          : data.delivery_note || `Verification initiated for ${data.new_email}.`
-      );
-      setStep("verify");
-      showToast(`Verification sent to ${data.new_email}`, "success");
+      if (!usedBackendOtp) {
+        const { error: sbError } = await supabase.auth.updateUser(
+          { email: trimmed },
+          { emailRedirectTo: `${window.location.origin}/verify-email-change` }
+        );
+        if (sbError) {
+          throw new Error(sbError.message || "Failed to send verification email.");
+        }
+        setPendingRequest({ new_email: trimmed });
+        setInfoNote(
+          `Confirmation link sent to ${trimmed} (and your current email if double-confirmation is enabled in Supabase). Open your inbox and click the confirmation link to finish switching your Gmail.`
+        );
+        setStep("supabase_sent");
+        showToast(`Confirmation email sent to ${trimmed}`, "success");
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -305,6 +328,27 @@ const EmailChangeModal = ({ isOpen, onClose, currentEmail }) => {
                 </button>
               </div>
             </form>
+          )}
+
+          {step === "supabase_sent" && (
+            <div className="py-4 text-center space-y-4">
+              <div className="w-16 h-16 rounded-full bg-emerald-50 border-2 border-emerald-500 flex items-center justify-center mx-auto">
+                <Mail size={28} className="text-emerald-600" />
+              </div>
+              <div>
+                <h4 className="text-lg font-bold text-slate-900">Check Your New Gmail Inbox</h4>
+                <p className="text-sm text-slate-600 mt-2 leading-relaxed">
+                  {infoNote}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition"
+              >
+                Got It
+              </button>
+            </div>
           )}
 
           {step === "done" && (

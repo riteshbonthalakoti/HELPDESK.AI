@@ -17,6 +17,24 @@ const VerifyEmailChange = () => {
   useEffect(() => {
     const verify = async () => {
       if (!token) {
+        // Support Supabase native email-change redirect callback
+        try {
+          const { data: userData, error: userErr } = await supabase.auth.getUser();
+          const authedUser = userData?.user;
+          if (!userErr && authedUser?.id && authedUser?.email) {
+            await supabase
+              .from("profiles")
+              .update({ email: authedUser.email })
+              .eq("id", authedUser.id);
+            await useAuthStore.getState().getProfile(authedUser);
+            setNewEmail(authedUser.email);
+            setStatus("success");
+            setMessage("Your new email address has been verified and synced across your account.");
+            return;
+          }
+        } catch {
+          // Fall through to missing-token error
+        }
         setStatus("error");
         setMessage("Missing verification token. Please use the link sent to your email.");
         return;

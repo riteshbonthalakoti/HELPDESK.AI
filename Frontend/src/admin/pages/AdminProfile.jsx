@@ -173,16 +173,27 @@ const AdminProfile = () => {
                             ) : (
                                 <div className="space-y-4 max-w-sm mx-auto md:mx-0">
                                     <input type="text" value={profileForm.name} onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-lg font-bold focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none" placeholder="Admin Name" />
-                                    <input type="email" value={profileForm.email} onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none" placeholder="Admin Email" />
+                                    <div className="flex items-center justify-between gap-3 bg-emerald-50/70 border border-emerald-200 rounded-xl px-4 py-2.5">
+                                        <span className="text-xs font-mono text-slate-700 truncate">{adminProfile?.email}</span>
+                                        <button type="button" onClick={() => setShowEmailModal(true)} className="text-xs font-bold text-emerald-700 hover:text-emerald-900 underline shrink-0 cursor-pointer">
+                                            Change &amp; Verify
+                                        </button>
+                                    </div>
                                 </div>
                             )}
                         </div>
-                        <div className="flex shrink-0 justify-center">
+                        <div className="flex flex-wrap shrink-0 justify-center gap-2.5">
                             {!isEditingProfile ? (
-                                <button onClick={() => { setProfileForm({ name: adminProfile?.full_name || '', email: adminProfile?.email || '', profile_picture: adminProfile?.profile_picture }); setIsEditingProfile(true); }}
-                                    style={{ background: '#fff', border: '1.5px solid #d1fae5', color: '#15803d', borderRadius: '10px', fontWeight: 600, fontSize: '13px', padding: '10px 20px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s' }}>
-                                    <Edit2 size={15} /> Edit Profile
-                                </button>
+                                <>
+                                    <button onClick={() => setShowEmailModal(true)}
+                                        style={{ background: 'linear-gradient(135deg, #16a34a, #22c55e)', border: 'none', color: '#fff', borderRadius: '10px', fontWeight: 600, fontSize: '13px', padding: '10px 18px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(22,163,74,0.25)' }}>
+                                        <Mail size={15} /> Change Email
+                                    </button>
+                                    <button onClick={() => { setProfileForm({ name: adminProfile?.full_name || '', email: adminProfile?.email || '', profile_picture: adminProfile?.profile_picture }); setIsEditingProfile(true); }}
+                                        style={{ background: '#fff', border: '1.5px solid #d1fae5', color: '#15803d', borderRadius: '10px', fontWeight: 600, fontSize: '13px', padding: '10px 20px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s' }}>
+                                        <Edit2 size={15} /> Edit Profile
+                                    </button>
+                                </>
                             ) : (
                                 <div className="flex items-center gap-3">
                                     <button onClick={() => setIsEditingProfile(false)} style={{ background: '#f3f4f6', color: '#6b7280', border: 'none', borderRadius: '10px', fontWeight: 600, fontSize: '13px', padding: '10px 20px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>

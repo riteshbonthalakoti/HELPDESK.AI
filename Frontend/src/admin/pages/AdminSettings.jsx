@@ -1,22 +1,28 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
     Settings,
     Cpu,
     Inbox,
     Bell,
     Save,
-    ShieldCheck
+    ShieldCheck,
+    Mail
 } from 'lucide-react';
 import useAdminStore from '../store/adminStore';
+import useAuthStore from '../../store/authStore';
 import { Card, CardContent } from "../../components/ui/card";
 import { Select } from "../../components/ui/select";
+import EmailChangeModal from "../../components/shared/EmailChangeModal";
 
 /**
  * AdminSettings Page
- * Comprehensive configuration for system parameters, AI thresholds, and notifications.
+ * Comprehensive configuration for account email verification, system parameters, AI thresholds, and notifications.
  */
 const AdminSettings = () => {
     const { settings, updateSettings } = useAdminStore();
+    const { profile, user } = useAuthStore();
+    const [showEmailModal, setShowEmailModal] = useState(false);
+    const currentEmail = profile?.email || user?.email || '';
 
     // Handlers
     const handleChange = (key, value) => {
@@ -38,6 +44,35 @@ const AdminSettings = () => {
             </div>
 
             <div className="space-y-8">
+                {/* 1b. Account & Verified Gmail Settings */}
+                <Card className="border-none shadow-2xl shadow-slate-200/40 rounded-[2rem] overflow-hidden bg-white">
+                    <div className="px-8 py-6 bg-gradient-to-r from-slate-900 to-emerald-950 text-white flex items-center justify-between border-b border-slate-800">
+                        <h3 className="text-sm font-black uppercase italic tracking-tight flex items-center gap-3">
+                            <Mail size={18} className="text-emerald-400" /> Account Email / Gmail Verification
+                        </h3>
+                    </div>
+                    <CardContent className="p-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                        <div className="space-y-1.5">
+                            <h4 className="text-xs font-black text-slate-700 uppercase tracking-widest">
+                                Registered Company Admin Email
+                            </h4>
+                            <p className="text-sm font-mono font-bold text-slate-900">
+                                {currentEmail || 'Not configured'}
+                            </p>
+                            <p className="text-[11px] text-slate-500">
+                                Switch your {profile?.company || 'RITESH PVT LTD'} Gmail address with email verification (6-digit code &amp; confirmation link).
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setShowEmailModal(true)}
+                            className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-600/20 transition shrink-0 cursor-pointer"
+                        >
+                            <Mail size={15} /> Change &amp; Verify Email
+                        </button>
+                    </CardContent>
+                </Card>
+
                 {/* 2. System Settings (AI Parameters) */}
                 <Card className="border-none shadow-2xl shadow-slate-200/40 rounded-[2rem] overflow-hidden bg-white">
                     <div className="px-8 py-6 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
@@ -170,6 +205,12 @@ const AdminSettings = () => {
                     </CardContent>
                 </Card>
             </div>
+
+            <EmailChangeModal
+                isOpen={showEmailModal}
+                onClose={() => setShowEmailModal(false)}
+                currentEmail={currentEmail}
+            />
         </div>
     );
 };

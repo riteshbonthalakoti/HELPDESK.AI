@@ -402,6 +402,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+try:
+    from backend.routers.email_change import router as email_change_router
+    app.include_router(email_change_router)
+except Exception as _email_router_err:
+    print(f"[WARNING] Could not register email_change router: {_email_router_err}")
+
 
 # ---------------------------------------------------------------------------
 # Root & Health check
