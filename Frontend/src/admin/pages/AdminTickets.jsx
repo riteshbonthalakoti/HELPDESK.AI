@@ -208,29 +208,29 @@ const AdminTickets = () => {
     };
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-700">
+        <div className="space-y-5 sm:space-y-8 animate-in fade-in duration-500">
             {/* 1. Header & Utility Bar */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-3 sm:gap-6">
                 <div>
-                    <h1 className="text-3xl font-black text-slate-900 tracking-tight italic uppercase">Ticket Management</h1>
-                    <p className="text-sm font-bold text-slate-400 mt-1 flex items-center gap-2">
+                    <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight italic uppercase">Ticket Management</h1>
+                    <p className="text-xs sm:text-sm font-bold text-slate-400 mt-1 flex items-center gap-2">
                         <Activity size={14} className="text-indigo-500" /> {filteredTickets.length} tickets matching current filters.
                     </p>
                 </div>
             </div>
 
             {/* 2. Advanced Filtering Station */}
-            <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-xl shadow-slate-200/50 space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="bg-white p-4 sm:p-6 rounded-2xl sm:rounded-[2rem] border border-slate-200 shadow-sm sm:shadow-xl sm:shadow-slate-200/50 space-y-4 sm:space-y-6">
+                <div className="grid grid-cols-2 lg:grid-cols-5 gap-2.5 sm:gap-4">
                     {/* Search Field */}
-                    <div className="relative group lg:col-span-1">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-emerald-500 transition-colors w-5 h-5" />
+                    <div className="relative group col-span-2 lg:col-span-1">
+                        <Search className="absolute left-3.5 sm:left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-emerald-500 transition-colors w-4 h-4 sm:w-5 sm:h-5" />
                         <input
                             type="text"
                             placeholder="Search..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-12 pr-4 py-3 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-emerald-500/5 focus:border-emerald-500 focus:bg-white transition-all text-slate-700 placeholder:text-slate-400"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl pl-10 sm:pl-12 pr-4 py-2.5 sm:py-3 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-emerald-500/5 focus:border-emerald-500 focus:bg-white transition-all text-slate-700 placeholder:text-slate-400"
                         />
                     </div>
 
@@ -269,7 +269,7 @@ const AdminTickets = () => {
             </div>
 
             {/* 3. High-Density Data Terminal */}
-            <div className="bg-white rounded-[2rem] border border-slate-200 shadow-2xl shadow-slate-200/50 overflow-hidden relative min-h-[400px]">
+            <div className="bg-white rounded-2xl sm:rounded-[2rem] border border-slate-200 shadow-sm sm:shadow-2xl sm:shadow-slate-200/50 overflow-hidden relative min-h-[320px]">
                 {loading && (
                     <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] z-10 flex items-center justify-center">
                         <Loader2 className="w-10 h-10 text-emerald-600 animate-spin" />
@@ -277,14 +277,120 @@ const AdminTickets = () => {
                 )}
 
                 {error && (
-                    <div className="p-12 text-center text-red-500 space-y-4">
+                    <div className="p-8 sm:p-12 text-center text-red-500 space-y-4">
                         <AlertCircle className="mx-auto w-12 h-12" />
                         <p className="font-bold uppercase tracking-widest text-xs">{error}</p>
                         <button onClick={fetchTickets} className="px-6 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest">Retry</button>
                     </div>
                 )}
 
-                <div className="overflow-x-auto">
+                {/* Mobile Native Incident Cards (< lg) */}
+                <div className="lg:hidden divide-y divide-slate-100">
+                    {filteredTickets.map((ticket) => (
+                        <div
+                            key={ticket.id}
+                            className={`p-4 space-y-3 ${isUpdating === ticket.id ? 'opacity-50 pointer-events-none' : ''}`}
+                        >
+                            {/* Top Row: ID + SLA + Open Button */}
+                            <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2 min-w-0">
+                                    <span className="font-mono text-xs font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">
+                                        #{formatTicketId(ticket.id)}
+                                    </span>
+                                    <SLABadge
+                                        priority={ticket.priority}
+                                        createdAt={ticket.created_at}
+                                        status={ticket.status}
+                                    />
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => navigate(`/admin/ticket/${ticket.id}`)}
+                                    className="inline-flex items-center gap-1 px-3 py-1.5 bg-slate-900 text-white rounded-xl text-[11px] font-bold active:scale-95 transition-all shrink-0"
+                                >
+                                    Open <ArrowUpRight size={13} />
+                                </button>
+                            </div>
+
+                            {/* Subject + Creator */}
+                            <div
+                                onClick={() => navigate(`/admin/ticket/${ticket.id}`)}
+                                className="cursor-pointer space-y-1"
+                            >
+                                <p className="text-sm font-bold text-slate-900 line-clamp-2 leading-snug">
+                                    {ticket.summary || ticket.subject || 'Untitled Incident'}
+                                </p>
+                                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-slate-500 font-medium">
+                                    <span className="font-semibold text-slate-700">
+                                        {ticket.creator?.full_name || ticket.profiles?.full_name || 'System'}
+                                    </span>
+                                    <span>·</span>
+                                    <span>{ticket.category || 'General'}</span>
+                                    <span>·</span>
+                                    <span>{formatTimelineDate(ticket.created_at)}</span>
+                                </div>
+                            </div>
+
+                            {/* Quick Controls Row */}
+                            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
+                                <select
+                                    value={String(ticket.priority || 'medium').toLowerCase()}
+                                    onChange={(e) => handleUpdateTicket(ticket.id, { priority: e.target.value })}
+                                    className={`w-full px-2.5 py-2 rounded-xl text-xs font-bold uppercase border outline-none ${getPriorityStyle(ticket.priority)}`}
+                                >
+                                    {priorities.filter(p => p !== 'All').map(p => (
+                                        <option key={p} value={p.toLowerCase()}>{p} Priority</option>
+                                    ))}
+                                </select>
+
+                                <select
+                                    value={String(ticket.status || 'open').toLowerCase()}
+                                    onChange={(e) => handleUpdateTicket(ticket.id, { status: e.target.value })}
+                                    className="w-full px-2.5 py-2 rounded-xl text-xs font-bold uppercase border border-slate-200 bg-slate-50 text-slate-700 outline-none"
+                                >
+                                    {statuses.filter(s => s !== 'All').map(s => (
+                                        <option key={s} value={s.toLowerCase()}>{s}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Assignee & AI Confidence */}
+                            <div className="flex items-center justify-between gap-2 pt-1">
+                                <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50/70 px-2.5 py-1 rounded-lg">
+                                    AI {((ticket.confidence || 0) * 100).toFixed(0)}% · {ticket.assigned_team || 'General'}
+                                </span>
+                                {ticket.assigned_agent_id ? (
+                                    <select
+                                        value={ticket.assigned_agent_id}
+                                        onChange={(e) => handleUpdateTicket(ticket.id, {
+                                            assigned_agent_id: e.target.value,
+                                            status: 'in progress'
+                                        })}
+                                        className="bg-indigo-50 text-indigo-700 text-[11px] font-bold px-2.5 py-1 rounded-lg border border-indigo-100 outline-none max-w-[150px] truncate"
+                                    >
+                                        {agents.map(a => (
+                                            <option key={a.id} value={a.id}>{a.full_name}</option>
+                                        ))}
+                                    </select>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        onClick={() => handleUpdateTicket(ticket.id, {
+                                            assigned_agent_id: user.id,
+                                            status: 'in progress'
+                                        })}
+                                        className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-[11px] font-bold active:scale-95 transition-all"
+                                    >
+                                        Claim Ticket
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                {/* Desktop Table (>= lg) */}
+                <div className="hidden lg:block overflow-x-auto">
                     <table className="w-full border-collapse">
                         <thead>
                             <tr className="bg-slate-50/80 border-b border-slate-100">

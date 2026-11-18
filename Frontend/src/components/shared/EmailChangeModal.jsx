@@ -17,6 +17,17 @@ const EmailChangeModal = ({ isOpen, onClose, currentEmail }) => {
 
   const inputRefs = useRef([]);
 
+  const getApiBase = () => {
+    if (
+      typeof window !== "undefined" &&
+      !/^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname)
+    ) {
+      // Same-origin Vercel serverless API in production (zero CORS issues)
+      return "";
+    }
+    return API_CONFIG.BACKEND_URL;
+  };
+
   const getAuthHeaders = async () => {
     const { data } = await supabase.auth.getSession();
     const token = data?.session?.access_token;
@@ -61,10 +72,9 @@ const EmailChangeModal = ({ isOpen, onClose, currentEmail }) => {
     setLoading(true);
     try {
       const headers = await getAuthHeaders();
-      const res = await fetch(`${API_CONFIG.BACKEND_URL}/api/account/email-change/request`, {
+      const res = await fetch(`${getApiBase()}/api/account/email-change/request`, {
         method: "POST",
         headers,
-        credentials: "include",
         body: JSON.stringify({ new_email: trimmed }),
       });
       const data = await res.json().catch(() => ({}));
@@ -139,10 +149,9 @@ const EmailChangeModal = ({ isOpen, onClose, currentEmail }) => {
     setLoading(true);
     try {
       const headers = await getAuthHeaders();
-      const res = await fetch(`${API_CONFIG.BACKEND_URL}/api/account/email-change/verify`, {
+      const res = await fetch(`${getApiBase()}/api/account/email-change/verify`, {
         method: "POST",
         headers,
-        credentials: "include",
         body: JSON.stringify({
           otp_code: otpCode,
           new_email: newEmail,
@@ -171,10 +180,14 @@ const EmailChangeModal = ({ isOpen, onClose, currentEmail }) => {
   const otpJoined = otpDigits.join("");
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
-      <div className="w-full max-w-md bg-white rounded-3xl border border-slate-200 shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-slate-950/65 backdrop-blur-sm p-0 sm:p-4">
+      <div className="w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-3xl border border-slate-200 shadow-2xl overflow-hidden max-h-[92dvh] overflow-y-auto pb-[env(safe-area-inset-bottom)] sm:pb-0">
+        {/* Mobile drag indicator */}
+        <div className="sm:hidden flex justify-center pt-2.5 pb-1 bg-slate-950">
+          <div className="w-10 h-1 rounded-full bg-slate-700" />
+        </div>
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-5 bg-slate-950 text-white border-b border-slate-800">
+        <div className="flex items-center justify-between px-5 sm:px-6 py-4 sm:py-5 bg-slate-950 text-white border-b border-slate-800">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-400/30 flex items-center justify-center">
               <Mail size={19} className="text-emerald-400" />
@@ -264,7 +277,7 @@ const EmailChangeModal = ({ isOpen, onClose, currentEmail }) => {
                 <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-2.5 text-center">
                   Enter 6-Digit Verification Code
                 </label>
-                <div className="flex items-center justify-center gap-2">
+                <div className="grid grid-cols-6 gap-2 max-w-[320px] mx-auto">
                   {otpDigits.map((digit, idx) => (
                     <input
                       key={idx}
@@ -273,11 +286,12 @@ const EmailChangeModal = ({ isOpen, onClose, currentEmail }) => {
                       }}
                       type="text"
                       inputMode="numeric"
+                      autoComplete={idx === 0 ? "one-time-code" : "off"}
                       maxLength={6}
                       value={digit}
                       onChange={(e) => handleDigitChange(idx, e.target.value)}
                       onKeyDown={(e) => handleDigitKeyDown(idx, e)}
-                      className="w-11 h-13 text-center text-xl font-mono font-bold text-slate-900 bg-slate-50 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 transition"
+                      className="w-full h-12 sm:h-13 text-center text-lg sm:text-xl font-mono font-bold text-slate-900 bg-slate-50 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 transition"
                     />
                   ))}
                 </div>

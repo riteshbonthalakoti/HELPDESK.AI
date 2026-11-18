@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     Ticket, Inbox, Search, Filter,
-    ChevronDown, ShieldCheck, Clock, Loader2, AlertCircle
+    ChevronDown, ChevronRight, ShieldCheck, Clock, Loader2, AlertCircle
 } from 'lucide-react';
 import useAuthStore from "../../store/authStore";
 import { supabase } from "../../lib/supabaseClient";
@@ -121,36 +121,36 @@ function MyTickets() {
     };
 
     return (
-        <main className="flex-1 max-w-[1200px] w-full mx-auto px-6 py-10 flex flex-col gap-8">
+        <main className="flex-1 max-w-[1200px] w-full mx-auto px-4 sm:px-6 py-5 sm:py-8 md:py-10 flex flex-col gap-5 sm:gap-7">
             {/* Header section */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3.5 sm:gap-4">
                 <div>
-                    <h1 className="text-3xl font-black text-gray-900 tracking-tight flex items-center gap-3">
-                        <Ticket className="text-emerald-600 w-8 h-8" /> My Tickets
+                    <h1 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight flex items-center gap-2.5 sm:gap-3">
+                        <Ticket className="text-emerald-600 w-6 h-6 sm:w-8 sm:h-8 shrink-0" /> My Tickets
                     </h1>
-                    <p className="text-gray-500 font-medium mt-1">Manage and track your support requests</p>
+                    <p className="text-xs sm:text-sm text-gray-500 font-medium mt-1">Manage and track your support requests</p>
                 </div>
                 <button
                     onClick={() => navigate('/create-ticket')}
-                    className="px-6 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all shadow-sm active:scale-95 flex items-center justify-center gap-2 whitespace-nowrap"
+                    className="w-full md:w-auto px-5 py-3 md:py-2.5 bg-emerald-600 text-white font-bold rounded-2xl md:rounded-xl hover:bg-emerald-700 transition-all shadow-sm active:scale-[0.98] flex items-center justify-center gap-2 whitespace-nowrap text-sm"
                 >
                     Create New Ticket
                 </button>
             </div>
 
             {/* Toolbar section */}
-            <div className="flex flex-col md:flex-row gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+            <div className="flex flex-col md:flex-row gap-3 md:gap-4 bg-white p-3.5 sm:p-4 rounded-2xl shadow-xs border border-gray-100">
                 <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5" />
                     <input
                         type="text"
                         placeholder="Search tickets by ID or subject..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-gray-900 font-medium"
+                        className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-gray-900 font-medium"
                     />
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="grid grid-cols-2 md:flex items-center gap-2.5 sm:gap-3">
                     <Select
                         value={statusFilter}
                         onChange={(e) => setStatusFilter(e.target.value)}
@@ -258,8 +258,57 @@ function MyTickets() {
                     </button>
                 </Card>
             ) : (
-                // Table View
-                <Card className="border border-gray-100 rounded-2xl bg-white shadow-sm overflow-hidden">
+                <>
+                    {/* Mobile Native Ticket Cards (< md) */}
+                    <div className="md:hidden space-y-3">
+                        {filteredTickets.map(ticket => {
+                            const prio = (ticket.priority || 'medium').toLowerCase();
+                            const barColor =
+                                prio === 'critical' || prio === 'high'
+                                    ? 'bg-red-500'
+                                    : prio === 'medium'
+                                    ? 'bg-amber-400'
+                                    : 'bg-emerald-500';
+                            return (
+                                <button
+                                    type="button"
+                                    key={ticket.id}
+                                    onClick={() => navigate(`/ticket/${ticket.id}`)}
+                                    className="w-full text-left bg-white rounded-2xl border border-slate-100 shadow-xs overflow-hidden active:scale-[0.985] transition-all flex"
+                                >
+                                    <div className={`w-1.5 shrink-0 ${barColor}`} />
+                                    <div className="flex-1 p-4 min-w-0 space-y-2.5">
+                                        <div className="flex items-center justify-between gap-2">
+                                            <span className="font-mono text-xs font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">
+                                                #{formatTicketId(ticket.id)}
+                                            </span>
+                                            <TicketStatusBadge status={ticket.status} />
+                                        </div>
+                                        <p className="text-[15px] font-bold text-slate-900 line-clamp-2 leading-snug">
+                                            {ticket.summary || ticket.subject || ticket.description || "No subject"}
+                                        </p>
+                                        <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-50">
+                                            <div className="flex items-center gap-2 min-w-0">
+                                                <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md truncate">
+                                                    {ticket.category || 'General'}
+                                                </span>
+                                                <span className={`text-[11px] capitalize ${getPriorityColor(ticket.priority)}`}>
+                                                    {ticket.priority || 'medium'}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center gap-1 text-[11px] text-slate-400 font-medium shrink-0">
+                                                <span>{formatTimelineDate(ticket.created_at)}</span>
+                                                <ChevronRight size={14} className="text-slate-300" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    {/* Desktop Table View (>= md) */}
+                    <Card className="hidden md:block border border-gray-100 rounded-2xl bg-white shadow-sm overflow-hidden">
                     <div className="overflow-x-auto">
                         <table className="w-full text-left whitespace-nowrap">
                             <thead>
@@ -348,6 +397,7 @@ function MyTickets() {
                         </table>
                     </div>
                 </Card>
+                </>
             )}
         </main>
     );

@@ -3,7 +3,7 @@
   "outputDirectory": "Frontend/dist",
   "rewrites": [
     {
-      "source": "/((?!assets/|vite.svg|favicon.ico).*)",
+      "source": "/((?!api/|assets/|vite.svg|favicon.ico).*)",
       "destination": "/index.html"
     }
   ]

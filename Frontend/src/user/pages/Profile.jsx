@@ -218,24 +218,24 @@ const Profile = () => {
     const ticketsEscalated = userTickets.filter(t => t.status?.toLowerCase()?.includes('escalat') || t.status?.toLowerCase() === 'open' || t.status?.toLowerCase()?.includes('pending')).length;
 
     return (
-        <div className="min-h-screen bg-[#f6f8f7] pb-20">
-            <main className="pt-32 px-6 flex justify-center">
-                <div className="w-full max-w-[1100px] flex flex-col gap-8">
+        <div className="min-h-[100dvh] bg-[#f6f8f7] pb-10 md:pb-20">
+            <main className="pt-5 sm:pt-8 md:pt-12 px-4 sm:px-6 flex justify-center">
+                <div className="w-full max-w-[1100px] flex flex-col gap-5 sm:gap-8">
 
                     {/* Profile Header */}
                     <motion.div
                         layout
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="relative bg-white p-8 rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-white overflow-hidden"
+                        className="relative bg-white p-5 sm:p-8 rounded-3xl sm:rounded-[2.5rem] shadow-lg sm:shadow-xl shadow-slate-200/50 border border-white overflow-hidden"
                     >
                         {/* Background Decoration */}
                         <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl -mr-20 -mt-20"></div>
 
-                        <div className="relative flex flex-col md:flex-row items-center gap-8">
+                        <div className="relative flex flex-col md:flex-row items-center gap-5 sm:gap-8">
                             {/* Avatar Section */}
                             <div className="relative group">
-                                <Avatar className="h-32 w-32 border-4 border-white ring-4 ring-emerald-500/10 shadow-2xl transition-transform duration-500 group-hover:scale-105">
+                                <Avatar className="h-24 w-24 sm:h-32 sm:w-32 border-4 border-white ring-4 ring-emerald-500/10 shadow-2xl transition-transform duration-500 group-hover:scale-105">
                                     <AvatarImage src={profile.profile_picture} alt={profile.full_name} className="object-cover" />
                                     <AvatarFallback className="bg-gradient-to-br from-emerald-50 to-emerald-100 text-emerald-600 text-4xl font-black">
                                         {profile.full_name?.split(' ').map(n => n[0]).join('') || profile.email?.[0].toUpperCase()}
@@ -268,13 +268,13 @@ const Profile = () => {
                                             exit={{ opacity: 0, x: 20 }}
                                             className="space-y-2"
                                         >
-                                            <h1 className="text-4xl font-black text-slate-900 tracking-tight italic uppercase">
+                                            <h1 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight italic uppercase break-words">
                                                 {profile.full_name || "New Recruit"}
                                             </h1>
-                                            <div className="flex flex-wrap justify-center md:justify-start gap-4 text-sm font-black text-slate-400 uppercase tracking-widest italic">
-                                                <div className="flex items-center gap-2">
-                                                    <Mail size={16} className="text-emerald-500" />
-                                                    {profile.email}
+                                            <div className="flex flex-wrap justify-center md:justify-start gap-2.5 sm:gap-4 text-xs sm:text-sm font-bold sm:font-black text-slate-500 sm:text-slate-400 uppercase tracking-wide sm:tracking-widest italic">
+                                                <div className="flex items-center gap-1.5 min-w-0 max-w-full">
+                                                    <Mail size={15} className="text-emerald-500 shrink-0" />
+                                                    <span className="truncate lowercase font-mono font-semibold">{profile.email}</span>
                                                 </div>
                                                 <div className="flex items-center gap-2">
                                                     <Briefcase size={16} className="text-indigo-500" />
@@ -328,19 +328,19 @@ const Profile = () => {
                                 </AnimatePresence>
                             </div>
 
-                            <div className="flex gap-3">
+                            <div className="flex flex-col sm:flex-row w-full md:w-auto gap-2.5 sm:gap-3">
                                 {!isEditing ? (
                                     <>
                                         <Button
                                             onClick={() => setShowEmailModal(true)}
-                                            className="rounded-2xl bg-emerald-50 border-2 border-emerald-200 px-5 py-6 font-black text-[10px] uppercase tracking-widest text-emerald-700 hover:bg-emerald-100 hover:border-emerald-400 transition-all"
+                                            className="w-full sm:w-auto rounded-2xl bg-emerald-50 border-2 border-emerald-200 px-5 py-5 sm:py-6 font-black text-[11px] sm:text-[10px] uppercase tracking-widest text-emerald-700 hover:bg-emerald-100 hover:border-emerald-400 transition-all"
                                         >
                                             <Mail className="w-3.5 h-3.5 mr-2" />
                                             Change Email
                                         </Button>
                                         <Button
                                             onClick={() => setIsEditing(true)}
-                                            className="rounded-2xl bg-white border-2 border-slate-100 px-6 py-6 font-black text-[10px] uppercase tracking-widest text-slate-600 hover:bg-slate-50 hover:border-emerald-500 hover:text-emerald-600 transition-all group"
+                                            className="w-full sm:w-auto rounded-2xl bg-white border-2 border-slate-100 px-6 py-5 sm:py-6 font-black text-[11px] sm:text-[10px] uppercase tracking-widest text-slate-600 hover:bg-slate-50 hover:border-emerald-500 hover:text-emerald-600 transition-all group"
                                         >
                                             <Pencil className="w-3.5 h-3.5 mr-2 transition-transform group-hover:-rotate-12" />
                                             Modify Profile
@@ -350,7 +350,7 @@ const Profile = () => {
                                     <>
                                         <Button
                                             onClick={handleSaveProfile}
-                                            className="rounded-2xl bg-emerald-600 px-6 py-6 font-black text-[10px] uppercase tracking-widest text-white hover:bg-emerald-700 shadow-lg shadow-emerald-500/20"
+                                            className="w-full sm:w-auto rounded-2xl bg-emerald-600 px-6 py-5 sm:py-6 font-black text-[11px] sm:text-[10px] uppercase tracking-widest text-white hover:bg-emerald-700 shadow-lg shadow-emerald-500/20"
                                         >
                                             <Check className="w-3.5 h-3.5 mr-2" />
                                             Synchronize
@@ -358,7 +358,7 @@ const Profile = () => {
                                         <Button
                                             variant="ghost"
                                             onClick={() => setIsEditing(false)}
-                                            className="rounded-2xl px-6 py-6 font-black text-[10px] uppercase tracking-widest text-slate-400 hover:text-red-500"
+                                            className="w-full sm:w-auto rounded-2xl px-6 py-5 sm:py-6 font-black text-[11px] sm:text-[10px] uppercase tracking-widest text-slate-400 hover:text-red-500"
                                         >
                                             <X className="w-3.5 h-3.5 mr-2" />
                                             Abort

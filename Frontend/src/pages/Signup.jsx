@@ -221,35 +221,37 @@ function Signup() {
   const labelStyle = { fontSize: '12px', fontWeight: 600, color: '#374151', letterSpacing: '0.05em', textTransform: 'uppercase' };
 
   return (
-    <div className="min-h-screen flex items-center justify-center relative overflow-hidden p-6 py-12" style={{ fontFamily: "'Inter', sans-serif", background: 'linear-gradient(160deg, #f0fdf4 0%, #dcfce7 60%, #bbf7d0 100%)' }}>
+    <div className="min-h-[100dvh] flex flex-col items-center justify-center relative overflow-hidden px-4 py-6 sm:p-6 sm:py-12" style={{ fontFamily: "'Inter', sans-serif", background: 'linear-gradient(160deg, #f0fdf4 0%, #dcfce7 60%, #bbf7d0 100%)' }}>
       <div className="absolute top-0 left-0 w-[600px] h-[600px] rounded-full pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(34,160,69,0.12) 0%, transparent 70%)' }} />
 
       {/* Back Button */}
-      <Link
-        to="/"
-        className="absolute top-8 left-8 flex items-center gap-2 transition-all group"
-        style={{ color: '#374151', fontWeight: 500, fontSize: '14px' }}
-        onMouseEnter={(e) => e.currentTarget.style.color = '#16a34a'}
-        onMouseLeave={(e) => e.currentTarget.style.color = '#374151'}
-      >
-        <div className="p-2 rounded-full transition-all" style={{ background: '#ffffff', border: '1px solid #e5e7eb' }}>
-          <ArrowLeft className="w-4 h-4" />
-        </div>
-        <span>Back to Home</span>
-      </Link>
+      <div className="w-full max-w-md sm:max-w-none sm:w-auto sm:absolute sm:top-8 sm:left-8 mb-4 sm:mb-0 relative z-10 pt-safe">
+        <Link
+          to="/"
+          className="inline-flex items-center gap-2 transition-all group"
+          style={{ color: '#374151', fontWeight: 500, fontSize: '14px' }}
+          onMouseEnter={(e) => e.currentTarget.style.color = '#16a34a'}
+          onMouseLeave={(e) => e.currentTarget.style.color = '#374151'}
+        >
+          <div className="p-2 rounded-full transition-all" style={{ background: '#ffffff', border: '1px solid #e5e7eb' }}>
+            <ArrowLeft className="w-4 h-4" />
+          </div>
+          <span>Back to Home</span>
+        </Link>
+      </div>
 
       <div className="w-full max-w-md relative z-10">
 
         {/* Logo Header */}
-        <div className="flex justify-center mb-8">
+        <div className="flex justify-center mb-5 sm:mb-8">
           <Link to="/" className="flex items-center gap-2 px-4 py-2 rounded-full transition" style={{ background: 'rgba(34,160,69,0.08)', border: '1px solid #d1fae5' }}>
             <BrainCircuit className="w-5 h-5" style={{ color: '#16a34a' }} />
             <span style={{ fontWeight: 800, fontSize: '18px', color: '#0f1f12' }}>HelpDesk.ai</span>
           </Link>
         </div>
 
-        <div className="bg-white rounded-3xl p-6 sm:p-8" style={{ boxShadow: '0 8px 40px rgba(0,0,0,0.08)', border: '1px solid #f0fdf4' }}>
-          <div className="text-center" style={{ marginBottom: '32px' }}>
+        <div className="bg-white rounded-3xl p-5 sm:p-8" style={{ boxShadow: '0 8px 40px rgba(0,0,0,0.08)', border: '1px solid #f0fdf4' }}>
+          <div className="text-center mb-6 sm:mb-8">
             <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: '28px', fontWeight: 800, color: '#0f1f12', letterSpacing: '-0.02em', marginBottom: '8px' }}>Create Account</h2>
             <p style={{ color: '#6b7280', fontSize: '14px' }}>Start automating your IT support today</p>
           </div>

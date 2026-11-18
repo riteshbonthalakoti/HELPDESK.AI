@@ -129,14 +129,12 @@ const AdminProfile = () => {
         finally { setPasswordLoading(false); }
     };
 
-    const cs = { card: { background: '#fff', borderRadius: '24px', border: '1px solid #f0fdf4', boxShadow: '0 4px 24px rgba(0,0,0,0.06)', padding: '36px 40px' } };
-
     return (
-        <div style={{ background: '#f8faf9', minHeight: '100vh', paddingBottom: '60px' }} className="max-w-6xl mx-auto py-6 space-y-10 -m-6 p-6 md:-m-10 md:p-10 animate-in fade-in duration-700">
+        <div className="max-w-6xl mx-auto space-y-6 sm:space-y-8 pb-8 sm:pb-12 animate-in fade-in duration-500">
             {/* 1. Profile Hero */}
-            <div style={cs.card} className="flex flex-col md:flex-row items-center md:items-start gap-10 relative overflow-hidden">
+            <div className="bg-white rounded-3xl border border-emerald-950/[0.06] shadow-sm sm:shadow-[0_4px_24px_rgba(0,0,0,0.06)] p-5 sm:p-8 md:p-10 flex flex-col md:flex-row items-center md:items-start gap-6 md:gap-10 relative overflow-hidden">
                 <div className="relative group shrink-0">
-                    <div style={{ width: 140, height: 140, borderRadius: '50%', border: '3px solid #bbf7d0', boxShadow: '0 0 0 6px rgba(34,160,69,0.08)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0fdf4', fontSize: '48px', fontWeight: 800, color: '#16a34a' }}>
+                    <div className="w-24 h-24 sm:w-32 sm:h-32 md:w-36 md:h-36 rounded-full border-[3px] border-emerald-200 ring-4 ring-emerald-500/10 overflow-hidden flex items-center justify-center bg-emerald-50 text-3xl sm:text-5xl font-extrabold text-emerald-600">
                         {isEditingProfile && profileForm.profile_picture ? (
                             <img src={profileForm.profile_picture} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         ) : adminProfile?.profile_picture ? (
@@ -232,13 +230,13 @@ const AdminProfile = () => {
                             </h3>
                             <Shield size={16} color="#22c55e" style={{ opacity: 0.5 }} />
                         </div>
-                        <div style={{ padding: '32px' }} className="space-y-8">
+                        <div className="p-4 sm:p-7 space-y-5 sm:space-y-6">
                             {/* Verified Email Change */}
-                            <div style={{ background: '#f8faf9', borderRadius: '14px', border: '1px solid #e5e7eb', padding: '20px' }} className="space-y-4">
+                            <div style={{ background: '#f8faf9', borderRadius: '14px', border: '1px solid #e5e7eb' }} className="p-4 sm:p-5 space-y-3 sm:space-y-4">
                                 <h4 style={{ fontSize: '11px', fontWeight: 700, color: '#111827', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '8px' }}>
                                     <Mail size={14} color="#16a34a" /> Verified Email / Gmail
                                 </h4>
-                                <p style={{ fontSize: '12px', color: '#6b7280' }}>Switch your company admin Gmail address with 6-digit OTP and link verification.</p>
+                                <p style={{ fontSize: '12px', color: '#6b7280' }}>Switch your company admin email directly via a 6-digit OTP sent to your new email.</p>
                                 <button onClick={() => setShowEmailModal(true)} style={{ width: '100%', padding: '12px', background: '#fff', border: '1.5px solid #d1fae5', color: '#15803d', borderRadius: '10px', fontWeight: 600, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s' }}>
                                     <Mail size={14} /> Change &amp; Verify Email
                                 </button>
