@@ -1,8 +1,8 @@
 {
-    "rewrites": [
-        {
-            "source": "/((?!assets/|vite.svg|favicon.ico).*)",
-            "destination": "/index.html"
-        }
-    ]
+  "rewrites": [
+    {
+      "source": "/((?!api/|assets/|vite.svg|favicon.ico|favicon.png).*)",
+      "destination": "/index.html"
+    }
+  ]
 }

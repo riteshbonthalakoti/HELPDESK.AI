@@ -1,5 +1,5 @@
-const crypto = require("crypto");
-const {
+import crypto from "crypto";
+import {
   MAX_OTP_ATTEMPTS,
   setCorsHeaders,
   getSupabaseConfig,
@@ -8,7 +8,7 @@ const {
   parseJsonBody,
   authenticateBearer,
   supabaseRest,
-} = require("./_utils");
+} from "./_utils.js";
 
 async function syncVerifiedEmail(userId, newEmail) {
   const { url, serviceKey } = getSupabaseConfig();
@@ -46,7 +46,7 @@ function timingSafeHexEqual(a, b) {
   return crypto.timingSafeEqual(Buffer.from(a, "utf8"), Buffer.from(b, "utf8"));
 }
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   setCorsHeaders(req, res);
 
   if (req.method === "OPTIONS") {
@@ -78,7 +78,6 @@ module.exports = async function handler(req, res) {
   const userId = auth.user.id;
   const now = new Date();
 
-  // 1. Try DB-backed verification first
   let dbRow = null;
   try {
     const dbRes = await supabaseRest(
@@ -150,7 +149,6 @@ module.exports = async function handler(req, res) {
     });
   }
 
-  // 2. Stateless HMAC challenge_token fallback
   const challengeToken = body.challenge_token;
   if (!challengeToken) {
     return res.status(404).json({
@@ -190,4 +188,4 @@ module.exports = async function handler(req, res) {
     new_email: targetEmail,
     message: "Email verified and updated directly to your new email address.",
   });
-};
+}

@@ -1,5 +1,5 @@
-const crypto = require("crypto");
-const {
+import crypto from "crypto";
+import {
   EMAIL_REGEX,
   OTP_TTL_MINUTES,
   setCorsHeaders,
@@ -11,9 +11,9 @@ const {
   supabaseRest,
   renderOtpEmailHtml,
   sendOtpEmail,
-} = require("./_utils");
+} from "./_utils.js";
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   setCorsHeaders(req, res);
 
   if (req.method === "OPTIONS") {
@@ -169,4 +169,4 @@ module.exports = async function handler(req, res) {
     email_sent: true,
     provider: delivery.provider,
   });
-};
+}

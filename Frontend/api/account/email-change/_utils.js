@@ -1,10 +1,10 @@
-const crypto = require("crypto");
+import crypto from "crypto";
 
-const EMAIL_REGEX = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
-const OTP_TTL_MINUTES = Number(process.env.EMAIL_CHANGE_TTL_MINUTES || 10);
-const MAX_OTP_ATTEMPTS = 5;
+export const EMAIL_REGEX = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
+export const OTP_TTL_MINUTES = Number(process.env.EMAIL_CHANGE_TTL_MINUTES || 10);
+export const MAX_OTP_ATTEMPTS = 5;
 
-function setCorsHeaders(req, res) {
+export function setCorsHeaders(req, res) {
   const origin = req.headers.origin;
   if (origin) {
     res.setHeader("Access-Control-Allow-Origin", origin);
@@ -16,7 +16,7 @@ function setCorsHeaders(req, res) {
   res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
 }
 
-function getSupabaseConfig() {
+export function getSupabaseConfig() {
   const url = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "").replace(/\/+$/, "");
   const serviceKey =
     process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || "";
@@ -24,7 +24,7 @@ function getSupabaseConfig() {
   return { url, serviceKey, anonKey };
 }
 
-function sha256Hex(value) {
+export function sha256Hex(value) {
   return crypto.createHash("sha256").update(String(value), "utf8").digest("hex");
 }
 
@@ -38,7 +38,7 @@ function getHmacKey() {
   );
 }
 
-function signChallengeToken(payload) {
+export function signChallengeToken(payload) {
   const ordered = {};
   Object.keys(payload)
     .sort()
@@ -50,7 +50,7 @@ function signChallengeToken(payload) {
   return `${b64}.${sig}`;
 }
 
-function verifyChallengeToken(token) {
+export function verifyChallengeToken(token) {
   try {
     if (!token || typeof token !== "string" || !token.includes(".")) return null;
     const dot = token.indexOf(".");
@@ -68,7 +68,7 @@ function verifyChallengeToken(token) {
   }
 }
 
-async function parseJsonBody(req) {
+export async function parseJsonBody(req) {
   if (req.body && typeof req.body === "object") return req.body;
   if (typeof req.body === "string") {
     try {
@@ -90,7 +90,7 @@ async function parseJsonBody(req) {
   }
 }
 
-async function authenticateBearer(req) {
+export async function authenticateBearer(req) {
   const { url, serviceKey, anonKey } = getSupabaseConfig();
   if (!url) {
     return { errorStatus: 503, errorDetail: "SUPABASE_URL is not configured on the server." };
@@ -123,7 +123,7 @@ async function authenticateBearer(req) {
   return { user };
 }
 
-async function supabaseRest(path, options = {}) {
+export async function supabaseRest(path, options = {}) {
   const { url, serviceKey } = getSupabaseConfig();
   const headers = {
     apikey: serviceKey,
@@ -154,7 +154,7 @@ function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
-function renderOtpEmailHtml({
+export function renderOtpEmailHtml({
   otpCode,
   newEmail,
   recipientName,
@@ -265,7 +265,7 @@ function renderOtpEmailHtml({
 </html>`;
 }
 
-async function sendOtpEmail({ to, subject, html, text }) {
+export async function sendOtpEmail({ to, subject, html, text }) {
   const resendKey = process.env.RESEND_API_KEY;
   if (resendKey) {
     const fromEmail =
@@ -325,19 +325,3 @@ async function sendOtpEmail({ to, subject, html, text }) {
     reason: "Set RESEND_API_KEY (or SENDGRID_API_KEY) in Vercel Project Environment Variables.",
   };
 }
-
-module.exports = {
-  EMAIL_REGEX,
-  OTP_TTL_MINUTES,
-  MAX_OTP_ATTEMPTS,
-  setCorsHeaders,
-  getSupabaseConfig,
-  sha256Hex,
-  signChallengeToken,
-  verifyChallengeToken,
-  parseJsonBody,
-  authenticateBearer,
-  supabaseRest,
-  renderOtpEmailHtml,
-  sendOtpEmail,
-};
