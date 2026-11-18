@@ -3,76 +3,88 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="light dark" />
     <title>{{ .Token }} is your HELPDESK.AI verification code</title>
   </head>
-  <body style="margin:0;padding:0;background-color:#0b1120;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;-webkit-font-smoothing:antialiased;">
+  <body style="margin:0;padding:0;background-color:#f6f8f7;font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;-webkit-font-smoothing:antialiased;color:#0f1f12;">
+    <!-- Hidden Inbox Preheader -->
     <div style="display:none;max-height:0;overflow:hidden;opacity:0;">
-      Your 6-digit HELPDESK.AI verification code is {{ .Token }}.
+      Your 6-digit HELPDESK.AI verification code is {{ .Token }}. Expires in 10 minutes.
     </div>
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#0b1120;padding:44px 16px;">
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f6f8f7;padding:36px 16px;">
       <tr>
         <td align="center">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:540px;background-color:#111827;border:1px solid #1f2937;border-radius:20px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,0.45);">
+          <!-- App-Themed Main Card -->
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:540px;background-color:#ffffff;border:1px solid #d1fae5;border-radius:24px;overflow:hidden;box-shadow:0 12px 36px rgba(15,31,18,0.08);">
+            <!-- Signature Dark Forest-Emerald App Hero Header -->
             <tr>
-              <td style="height:4px;background:linear-gradient(90deg,#10b981 0%,#34d399 50%,#059669 100%);font-size:0;line-height:0;">&nbsp;</td>
-            </tr>
-            <tr>
-              <td style="padding:32px 36px 24px;border-bottom:1px solid #1f2937;">
+              <td style="background:linear-gradient(135deg,#0b1f17 0%,#0f2e22 55%,#064e3b 100%);background-color:#0b1f17;padding:28px 32px;">
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
                   <tr>
                     <td style="vertical-align:middle;">
-                      <span style="font-size:20px;font-weight:800;letter-spacing:0.04em;color:#ffffff;">HELPDESK</span><span style="font-size:20px;font-weight:800;letter-spacing:0.04em;color:#34d399;">.AI</span>
+                      <span style="font-size:21px;font-weight:900;font-style:italic;letter-spacing:-0.02em;color:#ffffff;">HELPDESK</span><span style="font-size:21px;font-weight:900;font-style:italic;letter-spacing:-0.02em;color:#34d399;">.AI</span>
                     </td>
                     <td align="right" style="vertical-align:middle;">
-                      <span style="display:inline-block;padding:5px 12px;border-radius:999px;background-color:rgba(16,185,129,0.12);border:1px solid rgba(52,211,153,0.3);color:#6ee7b7;font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;">
+                      <span style="display:inline-block;padding:5px 12px;border-radius:999px;background-color:rgba(52,211,153,0.16);border:1px solid rgba(52,211,153,0.35);color:#a7f3d0;font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;">
                         RITESH PVT LTD
                       </span>
                     </td>
                   </tr>
                 </table>
+                <p style="margin:18px 0 4px;font-size:11px;font-weight:700;color:#6ee7b7;letter-spacing:0.12em;text-transform:uppercase;">
+                  Direct Email Verification
+                </p>
+                <h1 style="margin:0;font-size:24px;font-weight:800;line-height:1.25;color:#ffffff;letter-spacing:-0.02em;">
+                  Your 6-Digit Verification Code
+                </h1>
               </td>
             </tr>
+
+            <!-- Body -->
             <tr>
-              <td style="padding:36px 36px 32px;">
-                <p style="margin:0 0 10px;font-size:13px;font-weight:600;color:#34d399;letter-spacing:0.08em;text-transform:uppercase;">
-                  Email Verification Code
+              <td style="padding:32px;">
+                <p style="margin:0 0 24px;font-size:15px;line-height:1.65;color:#475569;">
+                  Enter the one-time verification code below in <strong style="color:#0f1f12;">HELPDESK.AI</strong> to switch your account email directly to <strong style="color:#0f1f12;">{{ .NewEmail }}</strong>.
                 </p>
-                <h1 style="margin:0 0 14px;font-size:24px;font-weight:700;line-height:1.3;color:#f8fafc;letter-spacing:-0.02em;">
-                  Confirm your new email address
-                </h1>
-                <p style="margin:0 0 28px;font-size:15px;line-height:1.65;color:#94a3b8;">
-                  Enter the 6-digit verification code below in HELPDESK.AI to switch your sign-in email directly to <strong style="color:#f8fafc;">{{ .NewEmail }}</strong>.
-                </p>
-                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px;background-color:#0f172a;border:1px solid #1e293b;border-radius:16px;">
+
+                <!-- App-Themed Emerald OTP Spotlight Box (OTP Only — No Links) -->
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px;background-color:#f0fdf4;border:1.5px solid #86efac;border-radius:18px;">
                   <tr>
-                    <td align="center" style="padding:28px 16px 24px;">
-                      <div style="display:inline-block;padding:14px 28px;background-color:#111827;border:1.5px solid #10b981;border-radius:14px;font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-size:34px;font-weight:800;letter-spacing:0.35em;color:#ffffff;box-shadow:0 4px 18px rgba(16,185,129,0.18);">
+                    <td align="center" style="padding:26px 16px 22px;">
+                      <p style="margin:0 0 12px;font-size:11px;font-weight:700;color:#15803d;letter-spacing:0.14em;text-transform:uppercase;">
+                        One-Time Passcode (OTP)
+                      </p>
+                      <div style="display:inline-block;padding:14px 30px;background-color:#ffffff;border:2px solid #16a34a;border-radius:14px;font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-size:36px;font-weight:900;letter-spacing:0.32em;color:#0f1f12;box-shadow:0 6px 20px rgba(22,163,74,0.14);">
                         {{ .Token }}
                       </div>
-                      <p style="margin:16px 0 0;font-size:12px;color:#64748b;letter-spacing:0.02em;">
-                        Valid for <strong style="color:#cbd5e1;">10 minutes</strong> &middot; Single-use code
+                      <p style="margin:14px 0 0;font-size:12px;color:#15803d;font-weight:600;">
+                        Valid for 10 minutes &middot; Single-use code
                       </p>
                     </td>
                   </tr>
                 </table>
-                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px;background-color:rgba(255,255,255,0.03);border:1px solid #1f2937;border-radius:12px;">
+
+                <!-- Target Email Summary -->
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 22px;background-color:#f8faf9;border:1px solid #e2e8f0;border-radius:14px;">
                   <tr>
                     <td style="padding:14px 18px;">
-                      <span style="display:block;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;">New Sign-In Email</span>
-                      <span style="display:block;margin-top:4px;font-size:14px;font-weight:600;color:#e2e8f0;font-family:'SFMono-Regular',Consolas,monospace;">{{ .NewEmail }}</span>
+                      <span style="display:block;font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;">New Sign-In Email</span>
+                      <span style="display:block;margin-top:4px;font-size:14px;font-weight:700;color:#0f1f12;font-family:'SFMono-Regular',Consolas,monospace;">{{ .NewEmail }}</span>
                     </td>
                   </tr>
                 </table>
+
                 <p style="margin:0;font-size:13px;line-height:1.6;color:#64748b;">
-                  Didn&rsquo;t request this change? You can safely ignore this email &mdash; your account will not be updated without this code.
+                  Didn&rsquo;t request this email change? You can safely ignore this message &mdash; your account will remain unchanged without this code.
                 </p>
               </td>
             </tr>
+
+            <!-- App Footer -->
             <tr>
-              <td style="padding:20px 36px;background-color:#0f172a;border-top:1px solid #1f2937;">
-                <p style="margin:0;font-size:12px;color:#475569;text-align:center;">
-                  &copy; HELPDESK.AI &middot; RITESH PVT LTD Security
+              <td style="padding:18px 32px;background-color:#f8faf9;border-top:1px solid #ecfdf5;text-align:center;">
+                <p style="margin:0;font-size:12px;color:#64748b;font-weight:500;">
+                  &copy; HELPDESK.AI &middot; RITESH PVT LTD Support Platform
                 </p>
               </td>
             </tr>
