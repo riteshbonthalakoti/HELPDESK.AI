@@ -428,17 +428,17 @@ export async function sendOtpEmail({ to, subject, html, text }) {
     return { sent: false, provider: "sendgrid", reason: `SendGrid HTTP ${resp.status}: ${errText}` };
   }
 
-  const smtpUser = process.env.SMTP_USER || process.env.GMAIL_USER;
-  const smtpPass = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD;
-  if (smtpUser && smtpPass) {
-    const smtpHost = process.env.SMTP_HOST || "smtp.gmail.com";
-    const smtpPort = Number(process.env.SMTP_PORT || 465);
-    const fromEmail = process.env.EMAIL_FROM || `HELPDESK.AI <${smtpUser}>`;
+  const mailAccount = process.env.SMTP_USER || process.env.GMAIL_USER;
+  const mailSecret = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD;
+  const mailHost = process.env.SMTP_HOST;
+  if (mailHost && mailAccount && mailSecret) {
+    const mailPort = Number(process.env.SMTP_PORT || 465);
+    const fromEmail = process.env.EMAIL_FROM || `HELPDESK.AI <${mailAccount}>`;
     return sendSmtpsEmail({
-      host: smtpHost,
-      port: smtpPort,
-      user: smtpUser,
-      pass: smtpPass,
+      host: mailHost,
+      port: mailPort,
+      user: mailAccount,
+      pass: mailSecret,
       from: fromEmail,
       to,
       subject,
@@ -451,6 +451,6 @@ export async function sendOtpEmail({ to, subject, html, text }) {
     sent: false,
     provider: "none",
     reason:
-      "Set SMTP_USER + SMTP_PASS (Gmail App Password), RESEND_API_KEY, BREVO_API_KEY, or SENDGRID_API_KEY in Vercel Environment Variables.",
+      "Set RESEND_API_KEY, BREVO_API_KEY, SENDGRID_API_KEY, or SMTP_HOST/SMTP_USER/SMTP_PASS in Vercel Environment Variables.",
   };
 }
