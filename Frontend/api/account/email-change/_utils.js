@@ -17,11 +17,19 @@ export function setCorsHeaders(req, res) {
   res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
 }
 
+function cleanEnv(val) {
+  return String(val || "")
+    .replace(/^\uFEFF/, "")
+    .replace(/[\r\n]/g, "")
+    .trim();
+}
+
 export function getSupabaseConfig() {
-  const url = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "").replace(/\/+$/, "");
-  const serviceKey =
-    process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || "";
-  const anonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || "";
+  const url = cleanEnv(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL).replace(/\/+$/, "");
+  const serviceKey = cleanEnv(
+    process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
+  );
+  const anonKey = cleanEnv(process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY);
   return { url, serviceKey, anonKey };
 }
 
@@ -351,11 +359,10 @@ function sendSmtpsEmail({ host, port, user, pass, from, to, subject, html, text 
 }
 
 export async function sendOtpEmail({ to, subject, html, text }) {
-  const resendKey = process.env.RESEND_API_KEY;
+  const resendKey = cleanEnv(process.env.RESEND_API_KEY);
   if (resendKey) {
     const fromEmail =
-      process.env.EMAIL_FROM ||
-      process.env.DIGEST_FROM_EMAIL ||
+      cleanEnv(process.env.EMAIL_FROM || process.env.DIGEST_FROM_EMAIL) ||
       "HELPDESK.AI <onboarding@resend.dev>";
     const resp = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -378,9 +385,10 @@ export async function sendOtpEmail({ to, subject, html, text }) {
     return { sent: false, provider: "resend", reason: `Resend HTTP ${resp.status}: ${errText}` };
   }
 
-  const brevoKey = process.env.BREVO_API_KEY;
+  const brevoKey = cleanEnv(process.env.BREVO_API_KEY);
   if (brevoKey) {
-    const senderEmail = process.env.EMAIL_FROM_ADDRESS || process.env.SMTP_USER || "no-reply@helpdesk.ai";
+    const senderEmail =
+      cleanEnv(process.env.EMAIL_FROM_ADDRESS || process.env.SMTP_USER) || "no-reply@helpdesk.ai";
     const resp = await fetch("https://api.brevo.com/v3/smtp/email", {
       method: "POST",
       headers: {
@@ -402,9 +410,9 @@ export async function sendOtpEmail({ to, subject, html, text }) {
     return { sent: false, provider: "brevo", reason: `Brevo HTTP ${resp.status}: ${errText}` };
   }
 
-  const sendgridKey = process.env.SENDGRID_API_KEY;
+  const sendgridKey = cleanEnv(process.env.SENDGRID_API_KEY);
   if (sendgridKey) {
-    const fromEmail = process.env.EMAIL_FROM || "no-reply@helpdesk.ai";
+    const fromEmail = cleanEnv(process.env.EMAIL_FROM) || "no-reply@helpdesk.ai";
     const resp = await fetch("https://api.sendgrid.com/v3/mail/send", {
       method: "POST",
       headers: {
@@ -428,12 +436,12 @@ export async function sendOtpEmail({ to, subject, html, text }) {
     return { sent: false, provider: "sendgrid", reason: `SendGrid HTTP ${resp.status}: ${errText}` };
   }
 
-  const mailAccount = process.env.SMTP_USER || process.env.GMAIL_USER;
-  const mailSecret = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD;
-  const mailHost = process.env.SMTP_HOST;
+  const mailAccount = cleanEnv(process.env.SMTP_USER || process.env.GMAIL_USER);
+  const mailSecret = cleanEnv(process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD);
+  const mailHost = cleanEnv(process.env.SMTP_HOST);
   if (mailHost && mailAccount && mailSecret) {
-    const mailPort = Number(process.env.SMTP_PORT || 465);
-    const fromEmail = process.env.EMAIL_FROM || `HELPDESK.AI <${mailAccount}>`;
+    const mailPort = Number(cleanEnv(process.env.SMTP_PORT) || 465);
+    const fromEmail = cleanEnv(process.env.EMAIL_FROM) || `HELPDESK.AI <${mailAccount}>`;
     return sendSmtpsEmail({
       host: mailHost,
       port: mailPort,

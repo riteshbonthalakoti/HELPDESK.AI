@@ -1,5 +1,18 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Mail, ShieldCheck, CheckCircle2, AlertCircle, Loader2, X, Send, ArrowLeft, RefreshCw } from "lucide-react";
+import { createPortal } from "react-dom";
+import {
+  Mail,
+  ShieldCheck,
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
+  X,
+  Send,
+  ArrowLeft,
+  ArrowRight,
+  RefreshCw,
+  Lock,
+} from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 import { API_CONFIG } from "../../config";
 import useAuthStore from "../../store/authStore";
@@ -22,7 +35,6 @@ const EmailChangeModal = ({ isOpen, onClose, currentEmail }) => {
       typeof window !== "undefined" &&
       !/^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname)
     ) {
-      // Same-origin Vercel serverless API in production (zero CORS issues)
       return "";
     }
     return API_CONFIG.BACKEND_URL;
@@ -46,6 +58,15 @@ const EmailChangeModal = ({ isOpen, onClose, currentEmail }) => {
     setError("");
     setResendCooldown(0);
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isOpen, onClose]);
 
   useEffect(() => {
     if (resendCooldown <= 0) return;
@@ -77,9 +98,17 @@ const EmailChangeModal = ({ isOpen, onClose, currentEmail }) => {
         headers,
         body: JSON.stringify({ new_email: trimmed }),
       });
-      const data = await res.json().catch(() => ({}));
+      const rawText = await res.text();
+      let data = {};
+      try {
+        data = rawText ? JSON.parse(rawText) : {};
+      } catch {
+        data = {};
+      }
       if (!res.ok) {
-        throw new Error(data.detail || "Unable to send OTP to the new email address.");
+        throw new Error(
+          data.detail || `Request failed (HTTP ${res.status}). Please try again.`
+        );
       }
 
       setNewEmail(data.new_email || trimmed);
@@ -111,7 +140,6 @@ const EmailChangeModal = ({ isOpen, onClose, currentEmail }) => {
     }
 
     if (cleaned.length > 1) {
-      // Handle full 6-digit paste
       const chars = cleaned.slice(0, 6).split("");
       const next = ["", "", "", "", "", ""];
       chars.forEach((ch, idx) => {
@@ -158,9 +186,15 @@ const EmailChangeModal = ({ isOpen, onClose, currentEmail }) => {
           challenge_token: challengeToken,
         }),
       });
-      const data = await res.json().catch(() => ({}));
+      const rawText = await res.text();
+      let data = {};
+      try {
+        data = rawText ? JSON.parse(rawText) : {};
+      } catch {
+        data = {};
+      }
       if (!res.ok) {
-        throw new Error(data.detail || "OTP verification failed.");
+        throw new Error(data.detail || `OTP verification failed (HTTP ${res.status}).`);
       }
 
       await supabase.auth.refreshSession().catch(() => {});
@@ -179,85 +213,145 @@ const EmailChangeModal = ({ isOpen, onClose, currentEmail }) => {
 
   const otpJoined = otpDigits.join("");
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-slate-950/65 backdrop-blur-sm p-0 sm:p-4">
-      <div className="w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-3xl border border-slate-200 shadow-2xl overflow-hidden max-h-[92dvh] overflow-y-auto pb-[env(safe-area-inset-bottom)] sm:pb-0">
-        {/* Mobile drag indicator */}
-        <div className="sm:hidden flex justify-center pt-2.5 pb-1 bg-slate-950">
-          <div className="w-10 h-1 rounded-full bg-slate-700" />
+  const modalContent = (
+    <div
+      className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center bg-slate-950/55 backdrop-blur-md p-0 sm:p-4 animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      <div
+        className="w-full sm:max-w-[440px] bg-white rounded-t-[28px] sm:rounded-[28px] ring-1 ring-slate-900/10 shadow-[0_24px_80px_rgba(15,23,42,0.28)] overflow-hidden max-h-[92dvh] overflow-y-auto pb-[env(safe-area-inset-bottom)] sm:pb-0 animate-in zoom-in-95 slide-in-from-bottom-4 duration-200"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Subtle Emerald Accent Hairline */}
+        <div className="h-1 w-full bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-600" />
+
+        {/* Mobile drag pill */}
+        <div className="sm:hidden flex justify-center pt-2.5">
+          <div className="w-10 h-1 rounded-full bg-slate-200" />
         </div>
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 sm:px-6 py-4 sm:py-5 bg-slate-950 text-white border-b border-slate-800">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-400/30 flex items-center justify-center">
-              <Mail size={19} className="text-emerald-400" />
+
+        {/* Clean Light Header */}
+        <div className="px-6 pt-5 pb-4 flex items-start justify-between gap-4 border-b border-slate-100">
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-emerald-50 border border-emerald-200/80 flex items-center justify-center shrink-0">
+              <Mail size={20} className="text-emerald-600" />
             </div>
             <div>
-              <h3 className="font-bold text-base tracking-tight">Change Account Email</h3>
-              <p className="text-xs text-slate-400">Direct 6-Digit OTP Verification</p>
+              <h3 className="text-[17px] font-bold text-slate-900 tracking-tight leading-snug">
+                Change Account Email
+              </h3>
+              <p className="text-xs text-slate-500 font-medium mt-0.5">
+                Direct 6-digit OTP verification
+              </p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
+            aria-label="Close modal"
+            className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200/80 text-slate-500 hover:text-slate-800 flex items-center justify-center transition cursor-pointer shrink-0"
           >
-            <X size={18} />
+            <X size={16} />
           </button>
         </div>
 
+        {/* Step Indicator */}
+        {step !== "done" && (
+          <div className="px-6 pt-4 pb-1 flex items-center gap-2 text-[11px] font-semibold">
+            <span
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full ${
+                step === "request"
+                  ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
+                  : "bg-slate-100 text-slate-500"
+              }`}
+            >
+              <span className="w-4 h-4 rounded-full bg-emerald-600 text-white text-[10px] font-bold flex items-center justify-center">
+                1
+              </span>
+              New Email
+            </span>
+            <ArrowRight size={12} className="text-slate-300" />
+            <span
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full ${
+                step === "otp"
+                  ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
+                  : "bg-slate-100 text-slate-400"
+              }`}
+            >
+              <span
+                className={`w-4 h-4 rounded-full text-[10px] font-bold flex items-center justify-center ${
+                  step === "otp" ? "bg-emerald-600 text-white" : "bg-slate-300 text-white"
+                }`}
+              >
+                2
+              </span>
+              Verify OTP
+            </span>
+          </div>
+        )}
+
         <div className="p-6 space-y-5">
           {error && (
-            <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium leading-relaxed">
-              <AlertCircle size={16} className="shrink-0 mt-0.5" />
-              <span>{error}</span>
+            <div className="flex items-start gap-2.5 p-3.5 rounded-2xl bg-red-50/90 border border-red-200/90 text-red-700 text-xs font-medium leading-relaxed">
+              <AlertCircle size={16} className="shrink-0 mt-0.5 text-red-500" />
+              <span className="break-words">{error}</span>
             </div>
           )}
 
           {step === "request" && (
             <form onSubmit={handleRequestSubmit} className="space-y-4">
-              <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                  Current Email
-                </label>
-                <input
-                  type="email"
-                  value={currentEmail || ""}
-                  disabled
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-500 text-sm font-mono cursor-not-allowed"
-                />
+              {/* Current Email Pill */}
+              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Current Email
+                  </p>
+                  <p className="text-sm font-mono font-semibold text-slate-700 truncate mt-0.5">
+                    {currentEmail || "Not set"}
+                  </p>
+                </div>
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-white border border-slate-200 text-[10px] font-semibold text-slate-500 shrink-0">
+                  <Lock size={10} /> Active
+                </span>
               </div>
 
+              {/* New Email Input */}
               <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                   New Email Address
                 </label>
-                <input
-                  type="email"
-                  required
-                  autoFocus
-                  value={newEmail}
-                  onChange={(e) => setNewEmail(e.target.value)}
-                  placeholder="new.email@gmail.com"
-                  className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/25 focus:border-emerald-500"
-                />
-                <p className="mt-1.5 text-xs text-slate-500">
-                  A 6-digit OTP will be sent directly to this new email. Your old email is not required.
+                <div className="relative">
+                  <Mail
+                    size={16}
+                    className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+                  />
+                  <input
+                    type="email"
+                    required
+                    autoFocus
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                    placeholder="name@gmail.com"
+                    className="w-full pl-10 pr-4 py-3 rounded-xl bg-white border border-slate-200 text-slate-900 text-sm font-medium placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-emerald-500/15 focus:border-emerald-500 transition"
+                  />
+                </div>
+                <p className="mt-2 text-xs text-slate-500 leading-relaxed">
+                  We&rsquo;ll send a 6-digit verification code directly to your new email. No action is needed on your old email.
                 </p>
               </div>
 
-              <div className="flex justify-end gap-3 pt-2">
+              <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 pt-2">
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-4 py-2.5 rounded-xl bg-slate-100 text-slate-600 text-sm font-semibold hover:bg-slate-200 transition cursor-pointer"
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200/80 text-slate-700 text-sm font-semibold transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold shadow-sm transition disabled:opacity-60 cursor-pointer"
+                  className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-sm font-semibold shadow-md shadow-emerald-600/20 active:scale-[0.98] transition disabled:opacity-60 cursor-pointer"
                 >
                   {loading ? <Loader2 size={16} className="animate-spin" /> : <Send size={15} />}
                   Send 6-Digit OTP
@@ -268,14 +362,14 @@ const EmailChangeModal = ({ isOpen, onClose, currentEmail }) => {
 
           {step === "otp" && (
             <form onSubmit={handleVerifyOtp} className="space-y-5">
-              <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 leading-relaxed">
-                Enter the <strong>6-digit OTP</strong> sent to{" "}
-                <span className="font-mono font-bold">{newEmail}</span>.
+              <div className="p-3.5 rounded-2xl bg-emerald-50/80 border border-emerald-200/80 text-xs text-emerald-950 leading-relaxed">
+                Enter the <strong>6-digit code</strong> sent to{" "}
+                <span className="font-mono font-bold text-emerald-800">{newEmail}</span>.
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-2.5 text-center">
-                  Enter 6-Digit Verification Code
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2.5 text-center">
+                  6-Digit Verification Code
                 </label>
                 <div className="grid grid-cols-6 gap-2 max-w-[320px] mx-auto">
                   {otpDigits.map((digit, idx) => (
@@ -291,7 +385,7 @@ const EmailChangeModal = ({ isOpen, onClose, currentEmail }) => {
                       value={digit}
                       onChange={(e) => handleDigitChange(idx, e.target.value)}
                       onKeyDown={(e) => handleDigitKeyDown(idx, e)}
-                      className="w-full h-12 sm:h-13 text-center text-lg sm:text-xl font-mono font-bold text-slate-900 bg-slate-50 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 transition"
+                      className="w-full h-12 sm:h-13 text-center text-lg sm:text-xl font-mono font-bold text-slate-900 bg-slate-50 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/15 transition"
                     />
                   ))}
                 </div>
@@ -322,14 +416,14 @@ const EmailChangeModal = ({ isOpen, onClose, currentEmail }) => {
               <button
                 type="submit"
                 disabled={loading || otpJoined.length !== 6}
-                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold shadow-sm transition disabled:opacity-50 cursor-pointer"
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-sm font-bold shadow-md shadow-emerald-600/20 active:scale-[0.98] transition disabled:opacity-50 cursor-pointer"
               >
                 {loading ? (
                   <Loader2 size={16} className="animate-spin" />
                 ) : (
                   <ShieldCheck size={16} />
                 )}
-                Verify OTP &amp; Change Email
+                Verify OTP &amp; Switch Email
               </button>
             </form>
           )}
@@ -340,16 +434,16 @@ const EmailChangeModal = ({ isOpen, onClose, currentEmail }) => {
                 <CheckCircle2 size={32} className="text-emerald-600" />
               </div>
               <div>
-                <h4 className="text-lg font-bold text-slate-900">Email Updated Successfully</h4>
-                <p className="text-sm text-slate-600 mt-1">
-                  Your account has been switched directly to{" "}
+                <h4 className="text-lg font-bold text-slate-900">Email Updated</h4>
+                <p className="text-sm text-slate-600 mt-1 leading-relaxed">
+                  Your account now signs in with{" "}
                   <span className="font-mono font-semibold text-slate-900">{newEmail}</span>.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={onClose}
-                className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition cursor-pointer"
+                className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-sm font-semibold shadow-md shadow-emerald-600/20 transition cursor-pointer"
               >
                 Done
               </button>
@@ -359,6 +453,11 @@ const EmailChangeModal = ({ isOpen, onClose, currentEmail }) => {
       </div>
     </div>
   );
+
+  if (typeof document !== "undefined") {
+    return createPortal(modalContent, document.body);
+  }
+  return modalContent;
 };
 
 export default EmailChangeModal;

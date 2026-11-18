@@ -56,6 +56,18 @@ export default async function handler(req, res) {
     return res.status(405).json({ detail: "Method not allowed" });
   }
 
+  try {
+    return await handleVerify(req, res);
+  } catch (err) {
+    console.error("email-change/verify error:", err);
+    return res.status(500).json({
+      detail: err?.message || "Unexpected server error while verifying OTP.",
+    });
+  }
+}
+
+async function handleVerify(req, res) {
+
   const { url, serviceKey } = getSupabaseConfig();
   if (!url || !serviceKey) {
     return res.status(503).json({
