@@ -5,8 +5,15 @@ site_url = "https://helpdeskai1918.vercel.app"
 additional_redirect_urls = [
   "https://helpdeskai1918.vercel.app/**",
   "https://helpdeskaiv1.vercel.app/**",
+  "https://ai-helpdesk-frontend.vercel.app/**",
   "http://localhost:5173/**"
 ]
+minimum_password_length = 8
+password_requirements = "lower_upper_letters_digits"
+
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
 
 [auth.email]
 enable_signup = true
