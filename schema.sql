@@ -709,6 +709,37 @@ CREATE TRIGGER update_user_feedback_timestamp
 	FOR EACH ROW
 	EXECUTE FUNCTION update_timestamp();
 
+CREATE TABLE IF NOT EXISTS public.email_change_requests (
+	id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+	user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+	company_id uuid REFERENCES public.companies(id) ON DELETE SET NULL,
+	old_email text NOT NULL,
+	new_email text NOT NULL,
+	token_hash text NOT NULL UNIQUE,
+	otp_code_hash text NOT NULL,
+	status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'verified', 'expired', 'cancelled')),
+	attempts integer NOT NULL DEFAULT 0,
+	expires_at timestamptz NOT NULL,
+	verified_at timestamptz,
+	created_at timestamptz NOT NULL DEFAULT timezone('utc'::text, now()),
+	updated_at timestamptz NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+ALTER TABLE public.email_change_requests ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Service role full access on email_change_requests" ON public.email_change_requests
+	FOR ALL USING (auth.role() = 'service_role');
+
+CREATE POLICY "Users can view own email change requests" ON public.email_change_requests
+	FOR SELECT USING (auth.uid() = user_id);
+
+CREATE TRIGGER update_email_change_requests_timestamp
+	BEFORE UPDATE ON public.email_change_requests
+	FOR EACH ROW
+	EXECUTE FUNCTION public.update_timestamp();
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.email_change_requests TO authenticated, service_role;
+
 
 
 

@@ -43,6 +43,20 @@ class TicketEmailContext:
 
 
 @dataclass
+class EmailChangeEmailContext:
+    """Data needed to render a verified email-change confirmation email."""
+
+    recipient_email: str
+    old_email: str
+    otp_code: str
+    verification_url: str = ""
+    recipient_name: str = ""
+    company_name: str = "RITESH PVT LTD"
+    account_role: str = "User"
+    expires_minutes: int = 30
+
+
+@dataclass
 class EmailDeliveryResult:
     """Normalized result returned by all delivery backends."""
 
@@ -197,6 +211,94 @@ class EmailService:
             f"{ticket_url}\n"
         )
         return subject, html, text
+
+    def build_email_change_email(self, context: EmailChangeEmailContext) -> tuple[str, str, str]:
+        """Render the branded email-change verification HTML and plain-text email."""
+        from pathlib import Path
+
+        subject = f"[HELPDESK.AI] Verify your new email address ({context.otp_code})"
+        template_path = Path(__file__).resolve().parent.parent / "templates" / "email_change_verification.html"
+        if template_path.exists():
+            template = self.jinja_env.from_string(template_path.read_text(encoding="utf-8"))
+        else:
+            template = self.jinja_env.from_string(
+                "<p>Hi {{ recipient_name }}, your verification code is <strong>{{ otp_code }}</strong>. "
+                "{% if verification_url %}<a href='{{ verification_url }}'>Verify Email</a>{% endif %}</p>"
+            )
+
+        html = template.render(
+            recipient_name=context.recipient_name,
+            company_name=context.company_name,
+            account_role=context.account_role,
+            old_email=context.old_email,
+            new_email=context.recipient_email,
+            otp_code=context.otp_code,
+            verification_url=context.verification_url,
+            expires_minutes=context.expires_minutes,
+        )
+        text = (
+            f"Confirm your new email address for {context.company_name}\n\n"
+            f"Hi {context.recipient_name or 'there'},\n\n"
+            f"Current email: {context.old_email}\n"
+            f"New email: {context.recipient_email}\n\n"
+            f"6-Digit Verification Code: {context.otp_code}\n"
+            f"Expires in {context.expires_minutes} minutes.\n\n"
+            + (f"Verify directly: {context.verification_url}\n\n" if context.verification_url else "")
+            + "If you did not request this email change, you can safely ignore this message.\n"
+        )
+        return subject, html, text
+
+    def send_email_change_verification(
+        self, context: EmailChangeEmailContext
+    ) -> EmailDeliveryResult:
+        """Send a verification email to the user's requested new email address."""
+        if not context.recipient_email:
+            return EmailDeliveryResult(False, self.provider, skipped=True, reason="missing_recipient_email")
+
+        subject, html, text = self.build_email_change_email(context)
+
+        if self.provider == "smtp":
+            return self._send_smtp(context.recipient_email, subject, html, text)
+        if self.provider == "sendgrid":
+            return self._send_sendgrid(context.recipient_email, subject, html, text)
+        if self.provider == "resend":
+            return self._send_resend(context.recipient_email, subject, html, text)
+
+        return EmailDeliveryResult(
+            False,
+            self.provider or "disabled",
+            skipped=True,
+            reason="email_provider_disabled",
+        )
+
+    def _send_resend(self, recipient_email: str, subject: str, html: str, text: str) -> EmailDeliveryResult:
+        api_key = os.getenv("RESEND_API_KEY", "")
+        if not api_key or not self.from_email:
+            return EmailDeliveryResult(False, "resend", skipped=True, reason="resend_not_configured")
+
+        payload = {
+            "from": f"{self.from_name} <{self.from_email}>",
+            "to": [recipient_email],
+            "subject": subject,
+            "html": html,
+            "text": text,
+        }
+        request = urllib.request.Request(
+            "https://api.resend.com/emails",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=20) as response:
+                body = json.loads(response.read().decode("utf-8") or "{}")
+                return EmailDeliveryResult(True, "resend", message_id=body.get("id"))
+        except urllib.error.HTTPError as exc:
+            logger.error("Resend delivery failed: status=%s reason=%s", exc.code, exc.reason)
+            raise
 
     def send_ticket_email(self, context: TicketEmailContext) -> EmailDeliveryResult:
         if not context.recipient_email:

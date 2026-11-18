@@ -32,6 +32,7 @@ import useAuthStore from "../../store/authStore";
 import useToastStore from "../../store/toastStore";
 import { supabase } from "../../lib/supabaseClient";
 import BugReportWidget from "../../components/shared/BugReportWidget";
+import EmailChangeModal from "../../components/shared/EmailChangeModal";
 const Profile = () => {
     const navigate = useNavigate();
     const { profile, user, logout, loading: authLoading, updateProfile } = useAuthStore();
@@ -47,6 +48,7 @@ const Profile = () => {
     });
 
     const [showPasswordModal, setShowPasswordModal] = useState(false);
+    const [showEmailModal, setShowEmailModal] = useState(false);
     const [passwordData, setPasswordData] = useState({
         currentPassword: '',
         newPassword: '',
@@ -328,13 +330,22 @@ const Profile = () => {
 
                             <div className="flex gap-3">
                                 {!isEditing ? (
-                                    <Button
-                                        onClick={() => setIsEditing(true)}
-                                        className="rounded-2xl bg-white border-2 border-slate-100 px-6 py-6 font-black text-[10px] uppercase tracking-widest text-slate-600 hover:bg-slate-50 hover:border-emerald-500 hover:text-emerald-600 transition-all group"
-                                    >
-                                        <Pencil className="w-3.5 h-3.5 mr-2 transition-transform group-hover:-rotate-12" />
-                                        Modify Profile
-                                    </Button>
+                                    <>
+                                        <Button
+                                            onClick={() => setShowEmailModal(true)}
+                                            className="rounded-2xl bg-emerald-50 border-2 border-emerald-200 px-5 py-6 font-black text-[10px] uppercase tracking-widest text-emerald-700 hover:bg-emerald-100 hover:border-emerald-400 transition-all"
+                                        >
+                                            <Mail className="w-3.5 h-3.5 mr-2" />
+                                            Change Email
+                                        </Button>
+                                        <Button
+                                            onClick={() => setIsEditing(true)}
+                                            className="rounded-2xl bg-white border-2 border-slate-100 px-6 py-6 font-black text-[10px] uppercase tracking-widest text-slate-600 hover:bg-slate-50 hover:border-emerald-500 hover:text-emerald-600 transition-all group"
+                                        >
+                                            <Pencil className="w-3.5 h-3.5 mr-2 transition-transform group-hover:-rotate-12" />
+                                            Modify Profile
+                                        </Button>
+                                    </>
                                 ) : (
                                     <>
                                         <Button
@@ -608,6 +619,11 @@ const Profile = () => {
                 )}
             </AnimatePresence>
 
+            <EmailChangeModal
+                isOpen={showEmailModal}
+                onClose={() => setShowEmailModal(false)}
+                currentEmail={profile?.email}
+            />
 
         </div>
     );

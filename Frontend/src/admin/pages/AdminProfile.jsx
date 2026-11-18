@@ -8,6 +8,7 @@ import useAuthStore from '../../store/authStore';
 import useToastStore from '../../store/toastStore';
 import { supabase } from "../../lib/supabaseClient";
 import BugReportWidget from "../../components/shared/BugReportWidget";
+import EmailChangeModal from "../../components/shared/EmailChangeModal";
 
 const AdminProfile = () => {
     const { user, profile: adminProfile } = useAuthStore();
@@ -31,6 +32,7 @@ const AdminProfile = () => {
 
     const [isAdmin2FAEnabled, setIsAdmin2FAEnabled] = useState(false);
     const [showPasswordModal, setShowPasswordModal] = useState(false);
+    const [showEmailModal, setShowEmailModal] = useState(false);
     const [passwordForm, setPasswordForm] = useState({ newPassword: '', confirmPassword: '' });
     const [passwordLoading, setPasswordLoading] = useState(false);
     const fileInputRef = useRef(null);
@@ -85,7 +87,7 @@ const AdminProfile = () => {
     const handleSaveProfile = async () => {
         try {
             const { error } = await supabase.from('profiles').update({
-                full_name: profileForm.name, email: profileForm.email,
+                full_name: profileForm.name,
                 profile_picture: profileForm.profile_picture
             }).eq('id', adminProfile.id);
             if (error) throw error;
@@ -220,6 +222,16 @@ const AdminProfile = () => {
                             <Shield size={16} color="#22c55e" style={{ opacity: 0.5 }} />
                         </div>
                         <div style={{ padding: '32px' }} className="space-y-8">
+                            {/* Verified Email Change */}
+                            <div style={{ background: '#f8faf9', borderRadius: '14px', border: '1px solid #e5e7eb', padding: '20px' }} className="space-y-4">
+                                <h4 style={{ fontSize: '11px', fontWeight: 700, color: '#111827', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <Mail size={14} color="#16a34a" /> Verified Email / Gmail
+                                </h4>
+                                <p style={{ fontSize: '12px', color: '#6b7280' }}>Switch your company admin Gmail address with 6-digit OTP and link verification.</p>
+                                <button onClick={() => setShowEmailModal(true)} style={{ width: '100%', padding: '12px', background: '#fff', border: '1.5px solid #d1fae5', color: '#15803d', borderRadius: '10px', fontWeight: 600, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s' }}>
+                                    <Mail size={14} /> Change &amp; Verify Email
+                                </button>
+                            </div>
                             {/* Password */}
                             <div style={{ background: '#f8faf9', borderRadius: '14px', border: '1px solid #e5e7eb', padding: '20px' }} className="space-y-4">
                                 <h4 style={{ fontSize: '11px', fontWeight: 700, color: '#111827', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -331,6 +343,11 @@ const AdminProfile = () => {
                     </div>
                 </div>
             )}
+            <EmailChangeModal
+                isOpen={showEmailModal}
+                onClose={() => setShowEmailModal(false)}
+                currentEmail={adminProfile?.email}
+            />
         </div>
     );
 };

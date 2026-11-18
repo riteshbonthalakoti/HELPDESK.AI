@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Verify Your New Email Address — HELPDESK.AI</title>
+  </head>
+  <body style="margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#0f172a;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:36px 16px;background:#f1f5f9;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:620px;background:#ffffff;border:1px solid #e2e8f0;border-radius:18px;overflow:hidden;box-shadow:0 8px 28px rgba(15,23,42,0.06);">
+            <!-- Header -->
+            <tr>
+              <td style="padding:28px 32px;background:linear-gradient(135deg,#0f172a 0%,#064e3b 100%);">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                  <tr>
+                    <td>
+                      <h1 style="margin:0;color:#ffffff;font-size:22px;letter-spacing:0.04em;font-weight:800;">
+                        HELPDESK<span style="color:#34d399;">.AI</span>
+                      </h1>
+                      <p style="margin:4px 0 0;color:#a7f3d0;font-size:12px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;">
+                        {{ company_name or "RITESH PVT LTD" }} &middot; Account Security
+                      </p>
+                    </td>
+                    <td align="right" style="vertical-align:middle;">
+                      <span style="display:inline-block;background:rgba(52,211,153,0.16);border:1px solid rgba(52,211,153,0.4);color:#a7f3d0;font-size:11px;font-weight:700;padding:6px 12px;border-radius:999px;text-transform:uppercase;letter-spacing:0.06em;">
+                        Email Verification
+                      </span>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- Body -->
+            <tr>
+              <td style="padding:36px 32px 28px;">
+                <p style="margin:0 0 8px;color:#64748b;font-size:14px;">
+                  Hi {{ recipient_name or "there" }},
+                </p>
+                <h2 style="margin:0 0 14px;color:#0f172a;font-size:22px;font-weight:800;line-height:1.3;">
+                  Confirm your new email address
+                </h2>
+                <p style="margin:0 0 24px;color:#334155;font-size:15px;line-height:1.65;">
+                  A request was submitted to update the sign-in and notification email on your
+                  <strong>{{ company_name or "RITESH PVT LTD" }}</strong>
+                  ({{ account_role or "Account" }}) profile. Verify ownership of this address to complete the switch.
+                </p>
+
+                <!-- Old -> New summary card -->
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;">
+                  <tr>
+                    <td style="padding:14px 20px;border-bottom:1px solid #e2e8f0;">
+                      <span style="display:block;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;">Current Email</span>
+                      <span style="display:block;margin-top:4px;font-size:14px;color:#475569;font-family:monospace;">{{ old_email }}</span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:14px 20px;">
+                      <span style="display:block;font-size:11px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:0.06em;">New Email Address</span>
+                      <span style="display:block;margin-top:4px;font-size:15px;font-weight:700;color:#0f172a;font-family:monospace;">{{ new_email }}</span>
+                    </td>
+                  </tr>
+                </table>
+
+                <!-- 6-digit OTP box -->
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;background:#ecfdf5;border:1.5px dashed #10b981;border-radius:14px;">
+                  <tr>
+                    <td align="center" style="padding:20px 16px;">
+                      <span style="display:block;font-size:11px;font-weight:700;color:#047857;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;">
+                        Your 6-Digit Verification Code
+                      </span>
+                      <span style="display:inline-block;font-size:32px;font-weight:800;letter-spacing:0.28em;color:#065f46;font-family:monospace;padding-left:8px;">
+                        {{ otp_code }}
+                      </span>
+                      <span style="display:block;font-size:12px;color:#047857;margin-top:8px;">
+                        Expires in {{ expires_minutes or 30 }} minutes
+                      </span>
+                    </td>
+                  </tr>
+                </table>
+
+                {% if verification_url %}
+                <!-- One-click CTA -->
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
+                  <tr>
+                    <td align="center">
+                      <a href="{{ verification_url }}" style="display:inline-block;background:#10b981;color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:12px;font-size:15px;font-weight:700;letter-spacing:0.02em;box-shadow:0 4px 12px rgba(16,185,129,0.28);">
+                        Verify New Email Address
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+                <p style="margin:0 0 20px;color:#64748b;font-size:12px;line-height:1.5;word-break:break-all;">
+                  Or paste this link into your browser:<br />
+                  <a href="{{ verification_url }}" style="color:#059669;text-decoration:underline;">{{ verification_url }}</a>
+                </p>
+                {% endif %}
+
+                <!-- Security notice -->
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;">
+                  <tr>
+                    <td style="padding:14px 16px;color:#92400e;font-size:12px;line-height:1.55;">
+                      <strong>Security Notice:</strong> Your account email will <em>not</em> change until you verify this address. If you did not initiate this request, you can safely ignore this message.
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- Footer -->
+            <tr>
+              <td style="padding:18px 32px;background:#f8fafc;border-top:1px solid #e2e8f0;text-align:center;">
+                <p style="margin:0;color:#94a3b8;font-size:11px;line-height:1.5;">
+                  Sent by <strong>HELPDESK.AI</strong> on behalf of <strong>{{ company_name or "RITESH PVT LTD" }}</strong>.
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
