@@ -11,6 +11,7 @@ import { Card } from "../../components/ui/card";
 import TicketStatusBadge from "../components/TicketStatusBadge";
 import TicketTimeline from "../components/TicketTimeline";
 import TicketChat from "../../components/shared/TicketChat";
+import SLACountdownTimer from "../../components/shared/SLACountdownTimer";
 import { formatTicketId } from "../../utils/format";
 import CSATModal from "../components/CSATModal";
 
@@ -168,6 +169,7 @@ const TicketDetail = () => {
                                 #{formatTicketId(ticket.ticket_id)}
                             </span>
                             <TicketStatusBadge status={ticket.status} />
+                            <SLACountdownTimer ticket={ticket} />
                             <span className="hidden sm:flex items-center gap-1.5 text-[10px] font-black text-gray-400 uppercase tracking-widest bg-gray-50 px-3 py-1 rounded-lg border border-gray-100">
                                 <History size={12} className="text-gray-300" /> Unified Timeline Active
                             </span>
