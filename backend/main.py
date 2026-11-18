@@ -87,7 +87,7 @@ from backend.services.classifier_v3 import classifier_v3  # V3 Power Model
 from backend.services.ner_service import NERService
 from backend.services.duplicate_service import DuplicateService
 from backend.services.rag_service import RagService
-
+from backend.middleware.ticket_ingestion import TicketIngestionMiddleware
 
 # ---------------------------------------------------------------------------
 # Request / Response models
@@ -381,6 +381,8 @@ async def limit_request_size_and_add_request_id(request: Request, call_next):
         return response
     finally:
         _request_id_ctx.set(None)
+# Protect ticket ingestion endpoints against duplicate submissions and abuse.
+app.add_middleware(TicketIngestionMiddleware)
 
 
 
@@ -881,6 +883,7 @@ async def get_ticket_by_id(ticket_id: str, user: dict = Depends(get_current_user
     return res.data
 
 
+@app.post("/api/tickets", response_model=TicketRecord)
 @app.post("/tickets", response_model=TicketRecord)
 async def create_ticket(ticket: TicketRecord):
     """Save a new ticket into the system."""
