@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import tls from "tls";
 
 export const EMAIL_REGEX = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
 export const OTP_TTL_MINUTES = Number(process.env.EMAIL_CHANGE_TTL_MINUTES || 10);
@@ -265,6 +266,90 @@ export function renderOtpEmailHtml({
 </html>`;
 }
 
+function sendSmtpsEmail({ host, port, user, pass, from, to, subject, html, text }) {
+  return new Promise((resolve) => {
+    const boundary = `helpdesk_${crypto.randomBytes(8).toString("hex")}`;
+    const safeSubject = `=?UTF-8?B?${Buffer.from(subject, "utf8").toString("base64")}?=`;
+    const mimeMessage = [
+      `From: ${from}`,
+      `To: <${to}>`,
+      `Subject: ${safeSubject}`,
+      "MIME-Version: 1.0",
+      `Content-Type: multipart/alternative; boundary="${boundary}"`,
+      "",
+      `--${boundary}`,
+      'Content-Type: text/plain; charset="UTF-8"',
+      "Content-Transfer-Encoding: base64",
+      "",
+      Buffer.from(text, "utf8").toString("base64").replace(/.{1,76}/g, "$&\r\n"),
+      `--${boundary}`,
+      'Content-Type: text/html; charset="UTF-8"',
+      "Content-Transfer-Encoding: base64",
+      "",
+      Buffer.from(html, "utf8").toString("base64").replace(/.{1,76}/g, "$&\r\n"),
+      `--${boundary}--`,
+      "",
+    ].join("\r\n");
+
+    const fromAddressMatch = /<([^>]+)>/.exec(from);
+    const envelopeFrom = fromAddressMatch ? fromAddressMatch[1] : user;
+
+    const socket = tls.connect({ host, port: Number(port) || 465, servername: host });
+    socket.setTimeout(15000);
+
+    let buffer = "";
+    let step = 0;
+    let settled = false;
+
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      try {
+        socket.destroy();
+      } catch {}
+      resolve(result);
+    };
+
+    const commands = [
+      () => `EHLO helpdesk.ai\r\n`,
+      () => `AUTH LOGIN\r\n`,
+      () => `${Buffer.from(user, "utf8").toString("base64")}\r\n`,
+      () => `${Buffer.from(pass, "utf8").toString("base64")}\r\n`,
+      () => `MAIL FROM:<${envelopeFrom}>\r\n`,
+      () => `RCPT TO:<${to}>\r\n`,
+      () => `DATA\r\n`,
+      () => `${mimeMessage.replace(/^\./gm, "..")}\r\n.\r\n`,
+      () => `QUIT\r\n`,
+    ];
+
+    socket.on("timeout", () => finish({ sent: false, provider: "smtp", reason: "SMTP connection timed out." }));
+    socket.on("error", (err) => finish({ sent: false, provider: "smtp", reason: `SMTP error: ${err.message}` }));
+
+    socket.on("data", (chunk) => {
+      buffer += chunk.toString("utf8");
+      const lines = buffer.split(/\r?\n/);
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        if (!line || /^\d{3}-/.test(line)) continue;
+        const code = Number(line.slice(0, 3));
+        if (!code || Number.isNaN(code)) continue;
+
+        if (code >= 400) {
+          return finish({ sent: false, provider: "smtp", reason: `SMTP ${code}: ${line}` });
+        }
+
+        if (step < commands.length) {
+          socket.write(commands[step]());
+          step += 1;
+        } else {
+          return finish({ sent: true, provider: "smtp" });
+        }
+      }
+    });
+  });
+}
+
 export async function sendOtpEmail({ to, subject, html, text }) {
   const resendKey = process.env.RESEND_API_KEY;
   if (resendKey) {
@@ -293,6 +378,30 @@ export async function sendOtpEmail({ to, subject, html, text }) {
     return { sent: false, provider: "resend", reason: `Resend HTTP ${resp.status}: ${errText}` };
   }
 
+  const brevoKey = process.env.BREVO_API_KEY;
+  if (brevoKey) {
+    const senderEmail = process.env.EMAIL_FROM_ADDRESS || process.env.SMTP_USER || "no-reply@helpdesk.ai";
+    const resp = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: {
+        "api-key": brevoKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        sender: { name: "HELPDESK.AI", email: senderEmail },
+        to: [{ email: to }],
+        subject,
+        htmlContent: html,
+        textContent: text,
+      }),
+    });
+    if (resp.ok) {
+      return { sent: true, provider: "brevo" };
+    }
+    const errText = await resp.text();
+    return { sent: false, provider: "brevo", reason: `Brevo HTTP ${resp.status}: ${errText}` };
+  }
+
   const sendgridKey = process.env.SENDGRID_API_KEY;
   if (sendgridKey) {
     const fromEmail = process.env.EMAIL_FROM || "no-reply@helpdesk.ai";
@@ -319,9 +428,29 @@ export async function sendOtpEmail({ to, subject, html, text }) {
     return { sent: false, provider: "sendgrid", reason: `SendGrid HTTP ${resp.status}: ${errText}` };
   }
 
+  const smtpUser = process.env.SMTP_USER || process.env.GMAIL_USER;
+  const smtpPass = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD;
+  if (smtpUser && smtpPass) {
+    const smtpHost = process.env.SMTP_HOST || "smtp.gmail.com";
+    const smtpPort = Number(process.env.SMTP_PORT || 465);
+    const fromEmail = process.env.EMAIL_FROM || `HELPDESK.AI <${smtpUser}>`;
+    return sendSmtpsEmail({
+      host: smtpHost,
+      port: smtpPort,
+      user: smtpUser,
+      pass: smtpPass,
+      from: fromEmail,
+      to,
+      subject,
+      html,
+      text,
+    });
+  }
+
   return {
     sent: false,
     provider: "none",
-    reason: "Set RESEND_API_KEY (or SENDGRID_API_KEY) in Vercel Project Environment Variables.",
+    reason:
+      "Set SMTP_USER + SMTP_PASS (Gmail App Password), RESEND_API_KEY, BREVO_API_KEY, or SENDGRID_API_KEY in Vercel Environment Variables.",
   };
 }
