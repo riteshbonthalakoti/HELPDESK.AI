@@ -1,19 +1,27 @@
 """
-Verified Email Change Router (Company Admins & Users)
+Pure 6-Digit OTP Email Change Router (Company Admins & Users)
 
-Allows any authenticated user or company admin (including RITESH PVT LTD admins)
-to change their Gmail / email address securely via:
-  1. POST /api/account/email-change/request — sends branded verification email with
-     both a 6-digit OTP code and a one-click verification link.
-  2. POST /api/account/email-change/verify  — verifies OTP or token, updates both
-     Supabase auth.users and public.profiles atomically.
-  3. GET  /api/account/email-change/status  — returns active pending request.
-  4. DELETE /api/account/email-change/cancel — cancels active pending request.
+Flow:
+  1. POST /api/account/email-change/request
+     - Authenticated user submits new_email.
+     - Generates a 6-digit numeric OTP (10-min TTL) and emails it ONLY to new_email
+       using the branded OTP HTML template (never emails or links the old email).
+     - Persists in public.email_change_requests (and also issues a tamper-proof
+       HMAC-SHA256 challenge_token so OTP verification works reliably even if the
+       optional audit table migration hasn't been pushed yet).
+  2. POST /api/account/email-change/verify
+     - Authenticated user submits the 6-digit otp_code (plus optional challenge_token).
+     - Verifies OTP and immediately switches auth.users.email AND public.profiles.email
+       directly from old email to new email with email_confirm=True.
+  3. GET /api/account/email-change/status & DELETE /api/account/email-change/cancel
 """
 
 from __future__ import annotations
 
+import base64
 import hashlib
+import hmac
+import json
 import logging
 import os
 import re
@@ -24,8 +32,8 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
-from backend.database import supabase
 from backend.auth_cookie import get_current_user
+from backend.database import supabase
 from backend.services.email_service import EmailChangeEmailContext, EmailService
 
 logger = logging.getLogger(__name__)
@@ -33,22 +41,51 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/account/email-change", tags=["Account Email Change"])
 
 EMAIL_REGEX = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
-TOKEN_TTL_MINUTES = int(os.getenv("EMAIL_CHANGE_TTL_MINUTES", "30"))
+OTP_TTL_MINUTES = int(os.getenv("EMAIL_CHANGE_TTL_MINUTES", "10"))
 MAX_OTP_ATTEMPTS = 5
 
 
 class EmailChangeRequestBody(BaseModel):
     new_email: str = Field(..., min_length=5, max_length=254)
-    frontend_origin: Optional[str] = Field(default=None, max_length=256)
 
 
 class EmailChangeVerifyBody(BaseModel):
-    token: Optional[str] = Field(default=None, min_length=16, max_length=256)
-    otp_code: Optional[str] = Field(default=None, min_length=6, max_length=6)
+    otp_code: str = Field(..., min_length=6, max_length=6)
+    new_email: Optional[str] = Field(default=None, max_length=254)
+    challenge_token: Optional[str] = Field(default=None, max_length=2048)
 
 
 def _sha256_hex(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _hmac_key() -> bytes:
+    secret = (
+        os.getenv("EMAIL_CHANGE_SECRET")
+        or os.getenv("SUPABASE_SERVICE_KEY")
+        or os.getenv("JWT_SECRET")
+        or "helpdesk-ai-otp-signing-fallback"
+    )
+    return secret.encode("utf-8")
+
+
+def _sign_challenge_token(payload: dict) -> str:
+    raw = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    b64 = base64.urlsafe_b64encode(raw).decode("ascii")
+    sig = hmac.new(_hmac_key(), b64.encode("ascii"), hashlib.sha256).hexdigest()
+    return f"{b64}.{sig}"
+
+
+def _verify_challenge_token(token: str) -> Optional[dict]:
+    try:
+        b64, sig = token.split(".", 1)
+        expected = hmac.new(_hmac_key(), b64.encode("ascii"), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(sig, expected):
+            return None
+        raw = base64.urlsafe_b64decode(b64.encode("ascii"))
+        return json.loads(raw.decode("utf-8"))
+    except Exception:
+        return None
 
 
 def _normalize_email(email: str) -> str:
@@ -61,17 +98,6 @@ def _normalize_email(email: str) -> str:
     return cleaned
 
 
-def _build_verification_url(raw_token: str, frontend_origin: Optional[str] = None) -> str:
-    base = (
-        (frontend_origin or "").strip()
-        or os.getenv("FRONTEND_URL", "").strip()
-        or os.getenv("APP_BASE_URL", "").strip()
-    ).rstrip("/")
-    if not base:
-        return ""
-    return f"{base}/verify-email-change?token={raw_token}"
-
-
 def _require_supabase():
     if not supabase:
         raise HTTPException(
@@ -82,7 +108,7 @@ def _require_supabase():
 
 
 def _sync_verified_email(sb, user_id: str, new_email: str) -> None:
-    """Update both Supabase Auth user email and public.profiles email."""
+    """Directly update both Supabase auth.users.email and public.profiles.email."""
     try:
         sb.auth.admin.update_user_by_id(
             user_id,
@@ -105,23 +131,26 @@ def _sync_verified_email(sb, user_id: str, new_email: str) -> None:
 
 @router.get("/status")
 async def get_email_change_status(current_user: dict = Depends(get_current_user)):
-    """Return any active pending email change request for the authenticated user."""
+    """Return any active pending OTP email change request for the authenticated user."""
     sb = _require_supabase()
     user_id = current_user.get("id")
     now_iso = datetime.now(timezone.utc).isoformat()
 
-    res = (
-        sb.table("email_change_requests")
-        .select("id, old_email, new_email, status, expires_at, created_at")
-        .eq("user_id", user_id)
-        .eq("status", "pending")
-        .gt("expires_at", now_iso)
-        .order("created_at", desc=True)
-        .limit(1)
-        .execute()
-    )
-    pending = res.data[0] if res.data else None
-    return {"pending": pending}
+    try:
+        res = (
+            sb.table("email_change_requests")
+            .select("id, old_email, new_email, status, expires_at, created_at")
+            .eq("user_id", user_id)
+            .eq("status", "pending")
+            .gt("expires_at", now_iso)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        pending = res.data[0] if res.data else None
+        return {"pending": pending}
+    except Exception:
+        return {"pending": None}
 
 
 @router.post("/request")
@@ -130,7 +159,7 @@ async def request_email_change(
     request: Request,
     current_user: dict = Depends(get_current_user),
 ):
-    """Initiate a verified email change by emailing a 6-digit OTP + secure link to the new address."""
+    """Generate a 6-digit OTP and send it directly and exclusively to the new email address."""
     sb = _require_supabase()
     user_id = current_user.get("id")
     if not user_id:
@@ -138,7 +167,6 @@ async def request_email_change(
 
     new_email = _normalize_email(body.new_email)
 
-    # Load user's profile for current email, role, name, and company
     profile_res = (
         sb.table("profiles")
         .select("id, email, full_name, role, company, company_id")
@@ -155,7 +183,6 @@ async def request_email_change(
             detail="New email address must be different from your current email address.",
         )
 
-    # Ensure no other profile already owns this email
     existing_res = (
         sb.table("profiles")
         .select("id")
@@ -169,30 +196,43 @@ async def request_email_change(
             detail="That email address is already registered to another account.",
         )
 
-    # Cancel any earlier pending requests for this user
-    sb.table("email_change_requests").update(
-        {"status": "cancelled", "updated_at": datetime.now(timezone.utc).isoformat()}
-    ).eq("user_id", user_id).eq("status", "pending").execute()
-
-    raw_token = secrets.token_urlsafe(32)
     otp_code = f"{secrets.randbelow(1_000_000):06d}"
-    expires_at = datetime.now(timezone.utc) + timedelta(minutes=TOKEN_TTL_MINUTES)
+    otp_hash = _sha256_hex(f"{user_id}:{new_email}:{otp_code}")
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=OTP_TTL_MINUTES)
 
-    record = {
-        "user_id": user_id,
-        "company_id": profile.get("company_id"),
-        "old_email": old_email,
-        "new_email": new_email,
-        "token_hash": _sha256_hex(raw_token),
-        "otp_code_hash": _sha256_hex(f"{user_id}:{new_email}:{otp_code}"),
-        "status": "pending",
-        "attempts": 0,
-        "expires_at": expires_at.isoformat(),
-    }
-    sb.table("email_change_requests").insert(record).execute()
+    # Best-effort DB persistence in email_change_requests (if migration is applied)
+    db_persisted = False
+    try:
+        sb.table("email_change_requests").update(
+            {"status": "cancelled", "updated_at": datetime.now(timezone.utc).isoformat()}
+        ).eq("user_id", user_id).eq("status", "pending").execute()
 
-    origin = body.frontend_origin or request.headers.get("origin")
-    verification_url = _build_verification_url(raw_token, origin)
+        sb.table("email_change_requests").insert(
+            {
+                "user_id": user_id,
+                "company_id": profile.get("company_id"),
+                "old_email": old_email,
+                "new_email": new_email,
+                "token_hash": _sha256_hex(secrets.token_urlsafe(32)),
+                "otp_code_hash": otp_hash,
+                "status": "pending",
+                "attempts": 0,
+                "expires_at": expires_at.isoformat(),
+            }
+        ).execute()
+        db_persisted = True
+    except Exception as exc:
+        logger.warning("email_change_requests DB persistence unavailable, using signed OTP token: %s", exc)
+
+    challenge_token = _sign_challenge_token(
+        {
+            "uid": user_id,
+            "old": old_email,
+            "new": new_email,
+            "h": otp_hash,
+            "exp": int(expires_at.timestamp()),
+        }
+    )
 
     role_label = {
         "master_admin": "Master Admin",
@@ -207,153 +247,162 @@ async def request_email_change(
             recipient_email=new_email,
             old_email=old_email,
             otp_code=otp_code,
-            verification_url=verification_url,
+            verification_url="",
             recipient_name=profile.get("full_name") or "",
             company_name=profile.get("company") or "RITESH PVT LTD",
             account_role=role_label,
-            expires_minutes=TOKEN_TTL_MINUTES,
+            expires_minutes=OTP_TTL_MINUTES,
         )
     )
 
+    if not delivery.sent:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                "Email delivery is not configured on the backend server. "
+                "Set RESEND_API_KEY or SMTP_HOST/SMTP_USER/SMTP_PASS in your backend environment "
+                f"(provider={delivery.provider}, reason={delivery.reason})."
+            ),
+        )
+
     return {
-        "status": "verification_sent" if delivery.sent else "pending_verification",
-        "old_email": old_email,
+        "status": "otp_sent",
         "new_email": new_email,
         "expires_at": expires_at.isoformat(),
-        "email_sent": delivery.sent,
+        "expires_minutes": OTP_TTL_MINUTES,
+        "challenge_token": challenge_token,
+        "db_persisted": db_persisted,
+        "email_sent": True,
         "provider": delivery.provider,
-        "delivery_note": (
-            "Verification email dispatched with 6-digit code and confirmation link."
-            if delivery.sent
-            else f"Request saved; configure EMAIL_PROVIDER (smtp/sendgrid/resend) to deliver mail ({delivery.reason})."
-        ),
     }
 
 
 @router.post("/verify")
 async def verify_email_change(
     body: EmailChangeVerifyBody,
-    request: Request,
+    current_user: dict = Depends(get_current_user),
 ):
-    """Complete an email change using either a one-click URL token or an authenticated 6-digit OTP."""
+    """Verify the 6-digit OTP sent to the new email and switch the account immediately."""
     sb = _require_supabase()
+    user_id = current_user.get("id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    otp_code = (body.otp_code or "").strip()
+    if not (len(otp_code) == 6 and otp_code.isdigit()):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Please enter a valid 6-digit numeric OTP code.",
+        )
+
     now = datetime.now(timezone.utc)
 
-    if body.token:
-        token_hash = _sha256_hex(body.token.strip())
+    # 1. Try DB-backed verification first
+    db_row = None
+    try:
         res = (
             sb.table("email_change_requests")
             .select("*")
-            .eq("token_hash", token_hash)
+            .eq("user_id", user_id)
             .eq("status", "pending")
+            .order("created_at", desc=True)
             .limit(1)
             .execute()
         )
-        if not res.data:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid or already used verification link.",
-            )
-        req_row = res.data[0]
-        expires_at = datetime.fromisoformat(req_row["expires_at"].replace("Z", "+00:00"))
+        if res.data:
+            db_row = res.data[0]
+    except Exception:
+        db_row = None
+
+    if db_row is not None:
+        expires_at = datetime.fromisoformat(db_row["expires_at"].replace("Z", "+00:00"))
         if expires_at < now:
-            sb.table("email_change_requests").update({"status": "expired"}).eq("id", req_row["id"]).execute()
+            sb.table("email_change_requests").update({"status": "expired"}).eq("id", db_row["id"]).execute()
             raise HTTPException(
                 status_code=status.HTTP_410_GONE,
-                detail="Verification link has expired. Please request a new one.",
+                detail="OTP has expired. Please request a new 6-digit code.",
             )
 
-        _sync_verified_email(sb, req_row["user_id"], req_row["new_email"])
+        attempts = int(db_row.get("attempts") or 0)
+        if attempts >= MAX_OTP_ATTEMPTS:
+            sb.table("email_change_requests").update({"status": "expired"}).eq("id", db_row["id"]).execute()
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many incorrect OTP attempts. Please request a new code.",
+            )
+
+        expected_hash = _sha256_hex(f"{user_id}:{db_row['new_email']}:{otp_code}")
+        if not hmac.compare_digest(expected_hash, db_row["otp_code_hash"]):
+            sb.table("email_change_requests").update(
+                {"attempts": attempts + 1, "updated_at": now.isoformat()}
+            ).eq("id", db_row["id"]).execute()
+            remaining = max(0, MAX_OTP_ATTEMPTS - attempts - 1)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Incorrect OTP code. {remaining} attempt(s) remaining.",
+            )
+
+        _sync_verified_email(sb, user_id, db_row["new_email"])
         sb.table("email_change_requests").update(
             {
                 "status": "verified",
                 "verified_at": now.isoformat(),
                 "updated_at": now.isoformat(),
             }
-        ).eq("id", req_row["id"]).execute()
+        ).eq("id", db_row["id"]).execute()
 
         return {
             "verified": True,
-            "old_email": req_row["old_email"],
-            "new_email": req_row["new_email"],
-            "message": "Email address verified and updated successfully.",
+            "old_email": db_row["old_email"],
+            "new_email": db_row["new_email"],
+            "message": "Email verified and updated directly to your new email address.",
         }
 
-    if not body.otp_code or not body.otp_code.isdigit():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Provide either a valid verification token or a 6-digit verification code.",
-        )
-
-    current_user = await get_current_user(request)
-    user_id = current_user.get("id")
-
-    res = (
-        sb.table("email_change_requests")
-        .select("*")
-        .eq("user_id", user_id)
-        .eq("status", "pending")
-        .order("created_at", desc=True)
-        .limit(1)
-        .execute()
-    )
-    if not res.data:
+    # 2. Stateless HMAC challenge_token verification fallback
+    if not body.challenge_token:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="No pending email change request found.",
+            detail="No active OTP session found. Please request a new 6-digit code.",
         )
 
-    req_row = res.data[0]
-    expires_at = datetime.fromisoformat(req_row["expires_at"].replace("Z", "+00:00"))
-    if expires_at < now:
-        sb.table("email_change_requests").update({"status": "expired"}).eq("id", req_row["id"]).execute()
-        raise HTTPException(
-            status_code=status.HTTP_410_GONE,
-            detail="Verification code has expired. Please request a new one.",
-        )
-
-    attempts = int(req_row.get("attempts") or 0)
-    if attempts >= MAX_OTP_ATTEMPTS:
-        sb.table("email_change_requests").update({"status": "expired"}).eq("id", req_row["id"]).execute()
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Too many failed verification attempts. Please request a new code.",
-        )
-
-    expected_hash = _sha256_hex(f"{user_id}:{req_row['new_email']}:{body.otp_code.strip()}")
-    if not secrets.compare_digest(expected_hash, req_row["otp_code_hash"]):
-        sb.table("email_change_requests").update(
-            {"attempts": attempts + 1, "updated_at": now.isoformat()}
-        ).eq("id", req_row["id"]).execute()
-        remaining = max(0, MAX_OTP_ATTEMPTS - attempts - 1)
+    claims = _verify_challenge_token(body.challenge_token)
+    if not claims or claims.get("uid") != user_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Incorrect verification code. {remaining} attempt(s) remaining.",
+            detail="Invalid OTP verification session. Please request a new code.",
+        )
+    if int(claims.get("exp", 0)) < int(now.timestamp()):
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail="OTP has expired. Please request a new 6-digit code.",
         )
 
-    _sync_verified_email(sb, user_id, req_row["new_email"])
-    sb.table("email_change_requests").update(
-        {
-            "status": "verified",
-            "verified_at": now.isoformat(),
-            "updated_at": now.isoformat(),
-        }
-    ).eq("id", req_row["id"]).execute()
+    target_email = claims["new"]
+    expected_hash = _sha256_hex(f"{user_id}:{target_email}:{otp_code}")
+    if not hmac.compare_digest(expected_hash, claims["h"]):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Incorrect 6-digit OTP code. Please check your new email inbox and try again.",
+        )
 
+    _sync_verified_email(sb, user_id, target_email)
     return {
         "verified": True,
-        "old_email": req_row["old_email"],
-        "new_email": req_row["new_email"],
-        "message": "Email address verified and updated successfully.",
+        "old_email": claims.get("old", ""),
+        "new_email": target_email,
+        "message": "Email verified and updated directly to your new email address.",
     }
 
 
 @router.delete("/cancel")
 async def cancel_email_change(current_user: dict = Depends(get_current_user)):
-    """Cancel any active pending email change request for the authenticated user."""
+    """Cancel any active pending OTP email change request for the authenticated user."""
     sb = _require_supabase()
     user_id = current_user.get("id")
-    sb.table("email_change_requests").update(
-        {"status": "cancelled", "updated_at": datetime.now(timezone.utc).isoformat()}
-    ).eq("user_id", user_id).eq("status", "pending").execute()
+    try:
+        sb.table("email_change_requests").update(
+            {"status": "cancelled", "updated_at": datetime.now(timezone.utc).isoformat()}
+        ).eq("user_id", user_id).eq("status", "pending").execute()
+    except Exception:
+        pass
     return {"cancelled": True}

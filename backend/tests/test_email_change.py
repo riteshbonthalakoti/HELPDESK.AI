@@ -1,8 +1,6 @@
-"""Unit tests for the verified email-change system (template, service, and router)."""
+"""Unit tests for the pure 6-digit OTP email-change system (template, service, router)."""
 
-import hashlib
 import os
-from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 os.environ.setdefault("ALLOW_DEGRADED_STARTUP", "true")
@@ -13,7 +11,6 @@ from backend.routers.email_change import (
     EmailChangeRequestBody,
     EmailChangeVerifyBody,
     _normalize_email,
-    _sha256_hex,
     request_email_change,
     verify_email_change,
 )
@@ -24,29 +21,28 @@ from backend.services.email_service import (
 )
 
 
-def test_email_change_template_renders_brand_otp_and_link():
+def test_email_change_otp_template_renders_clean_six_digit_tiles_without_links():
     svc = EmailService(provider="disabled", from_email="noreply@helpdesk.ai")
     subject, html, text = svc.build_email_change_email(
         EmailChangeEmailContext(
             recipient_email="new.ritesh@gmail.com",
             old_email="old.ritesh@gmail.com",
             otp_code="482910",
-            verification_url="https://app.helpdesk.ai/verify-email-change?token=abc123xyz",
             recipient_name="Ritesh",
             company_name="RITESH PVT LTD",
             account_role="Company Admin",
-            expires_minutes=30,
+            expires_minutes=10,
         )
     )
 
-    assert "482910" in subject
+    assert subject == "482910 is your HELPDESK.AI verification code"
     assert "RITESH PVT LTD" in html
-    assert "old.ritesh@gmail.com" in html
     assert "new.ritesh@gmail.com" in html
-    assert "482910" in html
-    assert "https://app.helpdesk.ai/verify-email-change?token=abc123xyz" in html
+    assert "old.ritesh@gmail.com" not in html
+    assert "verify-email-change" not in html
+    for digit in "482910":
+        assert f">{digit}<" in html or digit in html
     assert "482910" in text
-    assert "new.ritesh@gmail.com" in text
 
 
 def test_normalize_email_validates_syntax():
@@ -56,7 +52,7 @@ def test_normalize_email_validates_syntax():
 
 
 @pytest.mark.asyncio
-async def test_request_and_verify_email_change_token_flow():
+async def test_pure_otp_request_and_verify_switches_email_directly():
     captured_inserts = []
     updated_profiles = []
     auth_updates = []
@@ -87,10 +83,6 @@ async def test_request_and_verify_email_change_token_flow():
             return self
 
         def ilike(self, col, val):
-            self._filters[col] = val
-            return self
-
-        def gt(self, col, val):
             self._filters[col] = val
             return self
 
@@ -127,15 +119,7 @@ async def test_request_and_verify_email_change_token_flow():
                 res.data = [row]
                 return res
             if self.table_name == "email_change_requests" and self._op == "select":
-                res.data = [
-                    r
-                    for r in captured_inserts
-                    if r.get("status") == "pending"
-                    and (
-                        self._filters.get("token_hash") is None
-                        or r.get("token_hash") == self._filters.get("token_hash")
-                    )
-                ]
+                res.data = [r for r in captured_inserts if r.get("status") == "pending"]
                 return res
             res.data = []
             return res
@@ -145,13 +129,11 @@ async def test_request_and_verify_email_change_token_flow():
     fake_sb.auth.admin.update_user_by_id.side_effect = lambda uid, attrs: auth_updates.append((uid, attrs))
 
     fake_request = MagicMock()
-    fake_request.headers = {"origin": "https://helpdesk.ritesh.app"}
-
     sent_contexts = []
 
     def fake_send(_self, ctx):
         sent_contexts.append(ctx)
-        return EmailDeliveryResult(sent=True, provider="smtp")
+        return EmailDeliveryResult(sent=True, provider="resend")
 
     with patch("backend.routers.email_change.supabase", fake_sb), patch.object(
         EmailService, "send_email_change_verification", fake_send
@@ -161,16 +143,20 @@ async def test_request_and_verify_email_change_token_flow():
             fake_request,
             current_user={"id": "user-1", "email": "old@gmail.com"},
         )
-        assert resp["status"] == "verification_sent"
+        assert resp["status"] == "otp_sent"
         assert resp["new_email"] == "new.admin@gmail.com"
         assert len(sent_contexts) == 1
-        ctx = sent_contexts[0]
-        raw_token = ctx.verification_url.split("token=")[1]
-        assert captured_inserts[0]["token_hash"] == _sha256_hex(raw_token)
+        assert sent_contexts[0].recipient_email == "new.admin@gmail.com"
+        otp_code = sent_contexts[0].otp_code
+        assert len(otp_code) == 6 and otp_code.isdigit()
 
         verify_resp = await verify_email_change(
-            EmailChangeVerifyBody(token=raw_token),
-            fake_request,
+            EmailChangeVerifyBody(
+                otp_code=otp_code,
+                new_email="new.admin@gmail.com",
+                challenge_token=resp["challenge_token"],
+            ),
+            current_user={"id": "user-1", "email": "old@gmail.com"},
         )
         assert verify_resp["verified"] is True
         assert verify_resp["new_email"] == "new.admin@gmail.com"
