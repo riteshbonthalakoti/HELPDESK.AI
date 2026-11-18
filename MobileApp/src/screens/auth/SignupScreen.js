@@ -60,17 +60,35 @@ const SignupScreen = () => {
     ]).start();
   }, []);
 
-  // Fetch companies
+  // Fetch companies - enforce single company RITESH PVT LTD
   useEffect(() => {
     const fetchCompanies = async () => {
       setLoadingCompanies(true);
-      const { data, error } = await supabase
-        .from('companies')
-        .select('id, name')
-        .eq('status', 'active')
-        .order('name');
-      if (data) { setCompanies(data); setFilteredCompanies(data); }
-      setLoadingCompanies(false);
+      try {
+        const { data, error } = await supabase
+          .from('companies')
+          .select('id, name')
+          .eq('status', 'active')
+          .eq('name', 'RITESH PVT LTD')
+          .order('name');
+        if (data && data.length > 0) {
+          setCompanies(data);
+          setFilteredCompanies(data);
+          setSelectedCompany(data[0]);
+        } else {
+          const defaultCompany = { id: 'ritesh-pvt-ltd', name: 'RITESH PVT LTD' };
+          setCompanies([defaultCompany]);
+          setFilteredCompanies([defaultCompany]);
+          setSelectedCompany(defaultCompany);
+        }
+      } catch {
+        const defaultCompany = { id: 'ritesh-pvt-ltd', name: 'RITESH PVT LTD' };
+        setCompanies([defaultCompany]);
+        setFilteredCompanies([defaultCompany]);
+        setSelectedCompany(defaultCompany);
+      } finally {
+        setLoadingCompanies(false);
+      }
     };
     fetchCompanies();
 
@@ -204,15 +222,15 @@ const SignupScreen = () => {
 
             {/* Company Picker */}
             <View style={styles.field}>
-              <Text style={styles.label}>COMPANY</Text>
+              <Text style={styles.label}>COMPANY (ENFORCED WORKSPACE)</Text>
               <TouchableOpacity
                 style={styles.inputRow}
                 onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setCompanyModalOpen(true); }}
                 activeOpacity={0.8}
               >
                 <Building2 size={18} color="rgba(255,255,255,0.4)" style={{ marginRight: 10 }} />
-                <Text style={[styles.input, { color: selectedCompany ? '#fff' : 'rgba(255,255,255,0.3)', flex: 1 }]}>
-                  {selectedCompany ? selectedCompany.name : 'Select your company...'}
+                <Text style={[styles.input, { color: '#fff', flex: 1, fontWeight: '700' }]}>
+                  {selectedCompany ? selectedCompany.name : 'RITESH PVT LTD'}
                 </Text>
                 <ChevronDown size={18} color="rgba(255,255,255,0.4)" />
               </TouchableOpacity>

@@ -26,6 +26,8 @@ import TicketsListScreen from './src/screens/user/TicketsListScreen';
 import CreateTicketScreen from './src/screens/user/CreateTicketScreen';
 import TicketDetailScreen from './src/screens/user/TicketDetailScreen';
 import KnowledgeBaseScreen from './src/screens/user/KnowledgeBaseScreen';
+import UserProfileScreen from './src/screens/user/UserProfileScreen';
+import { NotificationProvider } from './src/components/NotificationProvider';
 
 import AdminDashboardScreen from './src/screens/admin/AdminDashboardScreen';
 import AdminTicketsScreen from './src/screens/admin/AdminTicketsScreen';
@@ -68,6 +70,14 @@ function UserTabNavigator() {
         options={{
           title: 'Help Docs',
           tabBarIcon: ({ color, size }) => <BookOpen size={size} color={color} />,
+        }}
+      />
+      <Tab.Screen
+        name="UserSettings"
+        component={UserProfileScreen}
+        options={{
+          title: 'Settings',
+          tabBarIcon: ({ color, size }) => <Settings size={size} color={color} />,
         }}
       />
     </Tab.Navigator>
@@ -185,28 +195,30 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <StatusBar style="dark" />
-      <NavigationContainer>
-        <Stack.Navigator screenOptions={{ headerShown: false }}>
-          {!session ? (
-            <>
-              <Stack.Screen name="Login" component={LoginScreen} />
-              <Stack.Screen name="Signup" component={SignupScreen} />
-              <Stack.Screen name="Onboarding" component={OnboardingScreen} />
-            </>
-          ) : isAdmin ? (
-            <>
-              <Stack.Screen name="AdminMain" component={AdminTabNavigator} />
-              <Stack.Screen name="AdminTicketDetail" component={AdminTicketDetailScreen} />
-            </>
-          ) : (
-            <>
-              <Stack.Screen name="UserMain" component={UserTabNavigator} />
-              <Stack.Screen name="TicketDetail" component={TicketDetailScreen} />
-            </>
-          )}
-        </Stack.Navigator>
-      </NavigationContainer>
+      <NotificationProvider>
+        <StatusBar style="dark" />
+        <NavigationContainer>
+          <Stack.Navigator screenOptions={{ headerShown: false }}>
+            {!session ? (
+              <>
+                <Stack.Screen name="Login" component={LoginScreen} />
+                <Stack.Screen name="Signup" component={SignupScreen} />
+                <Stack.Screen name="Onboarding" component={OnboardingScreen} />
+              </>
+            ) : isAdmin ? (
+              <>
+                <Stack.Screen name="AdminMain" component={AdminTabNavigator} />
+                <Stack.Screen name="AdminTicketDetail" component={AdminTicketDetailScreen} />
+              </>
+            ) : (
+              <>
+                <Stack.Screen name="UserMain" component={UserTabNavigator} />
+                <Stack.Screen name="TicketDetail" component={TicketDetailScreen} />
+              </>
+            )}
+          </Stack.Navigator>
+        </NavigationContainer>
+      </NotificationProvider>
     </SafeAreaProvider>
   );
 }

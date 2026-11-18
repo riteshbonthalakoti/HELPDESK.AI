@@ -49,15 +49,13 @@ const AdminDashboardScreen = () => {
         .single();
       if (profileData) setProfile(profileData);
 
-      // Fetch all company tickets
+      // Fetch all company tickets (single-company RITESH PVT LTD enforcement)
+      const company = profileData?.company || 'RITESH PVT LTD';
       let query = supabase
         .from('tickets')
         .select('*')
+        .eq('company', company)
         .order('created_at', { ascending: false });
-      
-      if (profileData?.company) {
-        query = query.eq('company', profileData.company);
-      }
       
       const { data: ticketData, error } = await query;
       if (!error && ticketData) {
@@ -174,7 +172,7 @@ const AdminDashboardScreen = () => {
         <View style={styles.header}>
           <View>
             <Text style={styles.title}>Admin Portal</Text>
-            <Text style={styles.subtitle}>{profile?.company || 'Company Console'}</Text>
+            <Text style={styles.subtitle}>{profile?.company || 'RITESH PVT LTD'}</Text>
           </View>
           <View style={styles.activePill}>
             <View style={styles.pulseDot} />

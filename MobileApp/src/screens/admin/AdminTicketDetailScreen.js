@@ -123,15 +123,14 @@ const AdminTicketDetailScreen = () => {
         setOverridePriority(ticketData.priority || '');
       }
 
-      // Fetch company agents/admins
-      if (userProfile?.company) {
-        const { data: companyAgents } = await supabase
-          .from('profiles')
-          .select('id, full_name, role')
-          .eq('company', userProfile.company)
-          .in('role', ['admin', 'super_admin', 'agent']);
-        setAgents(companyAgents || []);
-      }
+      // Fetch company agents/admins (single-company enforcement)
+      const company = userProfile?.company || 'RITESH PVT LTD';
+      const { data: companyAgents } = await supabase
+        .from('profiles')
+        .select('id, full_name, role')
+        .eq('company', company)
+        .in('role', ['admin', 'super_admin', 'agent']);
+      setAgents(companyAgents || []);
 
       // Fetch messages
       const { data: msgData } = await supabase

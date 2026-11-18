@@ -98,13 +98,13 @@ const AdminUsersScreen = () => {
         .eq('id', user.id)
         .single();
 
-      if (!adminProfile?.company) return;
+      const company = adminProfile?.company || 'RITESH PVT LTD';
 
-      // Fetch all profiles belonging to the same company
+      // Fetch all profiles belonging to the same company (single-company enforcement)
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('company', adminProfile.company)
+        .eq('company', company)
         .order('full_name', { ascending: true });
 
       if (!error && data) {
