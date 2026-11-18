@@ -24,7 +24,178 @@ import {
 import { Select } from "../../components/ui/select";
 import { formatTicketId } from "../../utils/format";
 import SLABadge from "../components/SLABadge";
+import SLANotificationToggle from "../../components/shared/SLANotificationToggle";
+import { useSLACountdown } from "../../hooks/useSLACountdown";
+import { getVisualAlertClasses } from "../../utils/slaUtils";
 import { formatTimelineDate } from "../../utils/dateUtils";
+
+const AdminTicketRow = React.memo(({
+    ticket,
+    isUpdating,
+    agents,
+    priorities,
+    statuses,
+    user,
+    handleUpdateTicket,
+    navigate,
+    getPriorityStyle,
+    getConfidenceColor,
+}) => {
+    const sla = useSLACountdown(ticket);
+    const urgencyAlertClass = getVisualAlertClasses(sla?.urgencyLevel, { isRow: true });
+
+    return (
+        <tr className={`hover:bg-slate-50/50 transition-colors group ${isUpdating === ticket.id ? 'opacity-50 pointer-events-none' : ''} ${urgencyAlertClass}`}>
+            {/* Ticket ID */}
+            <td className="px-6 py-6">
+                <span className="font-mono text-xs font-black text-emerald-600">#{formatTicketId(ticket.id)}</span>
+            </td>
+
+            {/* User (Joined with Profiles) */}
+            <td className="px-6 py-6">
+                <div className="flex items-center gap-3">
+                    {ticket.creator?.profile_picture || ticket.profiles?.profile_picture ? (
+                        <img
+                            src={ticket.creator?.profile_picture || ticket.profiles?.profile_picture}
+                            alt={ticket.creator?.full_name || ticket.profiles?.full_name || 'User'}
+                            className="w-8 h-8 rounded-lg object-cover border border-slate-100 shadow-sm"
+                        />
+                    ) : (
+                        <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-xs border border-emerald-100/50">
+                            {(ticket.creator?.full_name || ticket.profiles?.full_name || 'System').charAt(0).toUpperCase()}
+                        </div>
+                    )}
+                    <div className="flex flex-col">
+                        <span className="text-xs font-black text-slate-800 tracking-tight italic uppercase truncate max-w-[120px]">
+                            {ticket.creator?.full_name || ticket.profiles?.full_name || 'System'}
+                        </span>
+                        <span className="text-[10px] font-bold text-slate-400 lowercase truncate max-w-[120px]">
+                            {ticket.creator?.email || ticket.profiles?.email || '—'}
+                        </span>
+                    </div>
+                </div>
+            </td>
+
+            {/* Subject */}
+            <td className="px-6 py-6">
+                <div className="flex flex-col">
+                    <span className="text-xs font-bold text-slate-700 truncate max-w-[200px]" title={ticket.summary || ticket.subject}>
+                        {ticket.summary || ticket.subject}
+                    </span>
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                        {ticket.category} 
+                        <span className="text-[9px] font-medium text-slate-300">• {formatTimelineDate(ticket.created_at)}</span>
+                    </span>
+                </div>
+            </td>
+
+            {/* Priority (Editable) */}
+            <td className="px-6 py-6">
+                <select
+                    value={String(ticket.priority || 'medium').toLowerCase()}
+                    onChange={(e) => handleUpdateTicket(ticket.id, { priority: e.target.value })}
+                    className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider border outline-none cursor-pointer transition-all flex items-center justify-between ${getPriorityStyle(ticket.priority)}`}
+                >
+                    {priorities.filter(p => p !== 'All').map(p => (
+                        <option key={p} value={p.toLowerCase()}>{p}</option>
+                    ))}
+                </select>
+            </td>
+
+            {/* AI Score (Confidence) */}
+            <td className="px-6 py-6">
+                <div className="flex items-center gap-2">
+                    <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center text-[8px] font-black
+                        ${ticket.confidence >= 0.8 ? 'border-emerald-500 text-emerald-600 bg-emerald-50' : 
+                          ticket.confidence >= 0.5 ? 'border-amber-500 text-amber-600 bg-amber-50' : 
+                          'border-red-500 text-red-600 bg-red-50'}`}>
+                        {(ticket.confidence * 100).toFixed(0)}%
+                    </div>
+                    <div className="flex flex-col">
+                        <span className="text-[8px] font-black text-slate-400 uppercase">Confidence</span>
+                        <div className="w-12 h-1 bg-slate-100 rounded-full overflow-hidden mt-0.5">
+                            <div 
+                                className={`h-full ${getConfidenceColor(ticket.confidence || 0)}`} 
+                                style={{ width: `${(ticket.confidence || 0) * 100}%` }}
+                            />
+                        </div>
+                    </div>
+                </div>
+            </td>
+
+            {/* Assigned Team (Editable) */}
+            <td className="px-6 py-6 text-emerald-600 font-bold text-[10px]">
+                {ticket.assigned_team || 'General'}
+            </td>
+
+            {/* Agent Assignee (Editable) */}
+            <td className="px-6 py-6">
+                <div className="flex flex-col gap-1 min-w-[120px]">
+                    {ticket.assigned_agent_id ? (
+                        <select
+                            value={ticket.assigned_agent_id}
+                            onChange={(e) => handleUpdateTicket(ticket.id, { 
+                                assigned_agent_id: e.target.value,
+                                status: 'in progress'
+                            })}
+                            className="bg-transparent text-[10px] font-black text-indigo-600 uppercase tracking-tight italic border-none focus:ring-0 cursor-pointer hover:underline"
+                        >
+                            {agents.map(a => (
+                                <option key={a.id} value={a.id}>{a.full_name}</option>
+                            ))}
+                        </select>
+                    ) : (
+                        <button
+                            onClick={() => handleUpdateTicket(ticket.id, { 
+                                assigned_agent_id: user.id,
+                                status: 'in progress'
+                            })}
+                            className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-[9px] font-black uppercase tracking-widest border border-indigo-100 hover:bg-indigo-600 hover:text-white transition-all shadow-sm"
+                        >
+                            Claim
+                        </button>
+                    )}
+                </div>
+            </td>
+
+            {/* Status (Editable) */}
+            <td className="px-6 py-6">
+                <div className="flex items-center gap-2">
+                    <div className={`w-1.5 h-1.5 rounded-full ${ticket.status?.toLowerCase() === 'resolved' || ticket.status?.toLowerCase() === 'closed' ? 'bg-emerald-400' : 'bg-amber-500 animate-pulse'}`}></div>
+                    <Select
+                        value={String(ticket.status || 'open').toLowerCase()}
+                        onChange={(e) => handleUpdateTicket(ticket.id, { status: e.target.value })}
+                        buttonClassName="bg-transparent text-[10px] font-black text-slate-600 uppercase tracking-widest outline-none cursor-pointer flex justify-between items-center w-full"
+                        options={statuses.filter(s => s !== 'All').map(s => ({ value: s.toLowerCase(), label: s }))}
+                    />
+                </div>
+            </td>
+
+            {/* SLA Badge */}
+            <td className="px-6 py-6">
+                <SLABadge
+                    ticket={ticket}
+                    priority={ticket.priority}
+                    createdAt={ticket.created_at}
+                    status={ticket.status}
+                />
+            </td>
+
+            {/* Action: Open Ticket */}
+            <td className="px-6 py-6 text-center">
+                <div className="flex items-center justify-center gap-2">
+                    <button
+                        onClick={() => navigate(`/admin/ticket/${ticket.id}`)}
+                        className="p-2 bg-slate-900 text-white rounded-xl hover:bg-emerald-600 transition-all shadow-lg shadow-slate-900/10 hover:shadow-emerald-500/20"
+                        title="Open Detailed View"
+                    >
+                        <ArrowUpRight size={14} />
+                    </button>
+                </div>
+            </td>
+        </tr>
+    );
+});
 
 const AdminTickets = () => {
     const navigate = useNavigate();
@@ -217,6 +388,9 @@ const AdminTickets = () => {
                         <Activity size={14} className="text-indigo-500" /> {filteredTickets.length} tickets matching current filters.
                     </p>
                 </div>
+                <div className="flex items-center gap-3">
+                    <SLANotificationToggle />
+                </div>
             </div>
 
             {/* 2. Advanced Filtering Station */}
@@ -306,154 +480,19 @@ const AdminTickets = () => {
                         </thead>
                         <tbody className="divide-y divide-slate-50">
                             {filteredTickets.map((ticket) => (
-                                <tr key={ticket.id} className={`hover:bg-slate-50/50 transition-colors group ${isUpdating === ticket.id ? 'opacity-50 pointer-events-none' : ''}`}>
-                                    {/* Ticket ID */}
-                                    <td className="px-6 py-6">
-                                        <span className="font-mono text-xs font-black text-emerald-600">#{formatTicketId(ticket.id)}</span>
-                                    </td>
-
-                                    {/* User (Joined with Profiles) */}
-                                    <td className="px-6 py-6">
-                                        <div className="flex items-center gap-3">
-                                            {ticket.creator?.profile_picture || ticket.profiles?.profile_picture ? (
-                                                <img
-                                                    src={ticket.creator?.profile_picture || ticket.profiles?.profile_picture}
-                                                    alt={ticket.creator?.full_name || ticket.profiles?.full_name || 'User'}
-                                                    className="w-8 h-8 rounded-lg object-cover border border-slate-100 shadow-sm"
-                                                />
-                                            ) : (
-                                                <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-xs border border-emerald-100/50">
-                                                    {(ticket.creator?.full_name || ticket.profiles?.full_name || 'System').charAt(0).toUpperCase()}
-                                                </div>
-                                            )}
-                                            <div className="flex flex-col">
-                                                <span className="text-xs font-black text-slate-800 tracking-tight italic uppercase truncate max-w-[120px]">
-                                                    {ticket.creator?.full_name || ticket.profiles?.full_name || 'System'}
-                                                </span>
-                                                <span className="text-[10px] font-bold text-slate-400 lowercase truncate max-w-[120px]">
-                                                    {ticket.creator?.email || ticket.profiles?.email || '—'}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </td>
-
-                                    {/* Subject */}
-                                    <td className="px-6 py-6">
-                                        <div className="flex flex-col">
-                                            <span className="text-xs font-bold text-slate-700 truncate max-w-[200px]" title={ticket.summary || ticket.subject}>
-                                                {ticket.summary || ticket.subject}
-                                            </span>
-                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                                                {ticket.category} 
-                                                <span className="text-[9px] font-medium text-slate-300">• {formatTimelineDate(ticket.created_at)}</span>
-                                            </span>
-                                        </div>
-                                    </td>
-
-                                    {/* Priority (Editable) */}
-                                    <td className="px-6 py-6">
-                                        <select
-                                            value={String(ticket.priority || 'medium').toLowerCase()}
-                                            onChange={(e) => handleUpdateTicket(ticket.id, { priority: e.target.value })}
-                                            className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider border outline-none cursor-pointer transition-all flex items-center justify-between ${getPriorityStyle(ticket.priority)}`}
-                                        >
-                                            {priorities.filter(p => p !== 'All').map(p => (
-                                                <option key={p} value={p.toLowerCase()}>{p}</option>
-                                            ))}
-                                        </select>
-                                    </td>
-
-                                    {/* AI Score (Confidence) */}
-                                    <td className="px-6 py-6">
-                                        <div className="flex items-center gap-2">
-                                            <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center text-[8px] font-black
-                                                ${ticket.confidence >= 0.8 ? 'border-emerald-500 text-emerald-600 bg-emerald-50' : 
-                                                  ticket.confidence >= 0.5 ? 'border-amber-500 text-amber-600 bg-amber-50' : 
-                                                  'border-red-500 text-red-600 bg-red-50'}`}>
-                                                {(ticket.confidence * 100).toFixed(0)}%
-                                            </div>
-                                            <div className="flex flex-col">
-                                                <span className="text-[8px] font-black text-slate-400 uppercase">Confidence</span>
-                                                <div className="w-12 h-1 bg-slate-100 rounded-full overflow-hidden mt-0.5">
-                                                    <div 
-                                                        className={`h-full ${getConfidenceColor(ticket.confidence || 0)}`} 
-                                                        style={{ width: `${(ticket.confidence || 0) * 100}%` }}
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </td>
-
-                                    {/* Assigned Team (Editable) */}
-                                    <td className="px-6 py-6 text-emerald-600 font-bold text-[10px]">
-                                        {ticket.assigned_team || 'General'}
-                                    </td>
-
-                                    {/* Agent Assignee (Editable) */}
-                                    <td className="px-6 py-6">
-                                        <div className="flex flex-col gap-1 min-w-[120px]">
-                                            {ticket.assigned_agent_id ? (
-                                                <select
-                                                    value={ticket.assigned_agent_id}
-                                                    onChange={(e) => handleUpdateTicket(ticket.id, { 
-                                                        assigned_agent_id: e.target.value,
-                                                        status: 'in progress'
-                                                    })}
-                                                    className="bg-transparent text-[10px] font-black text-indigo-600 uppercase tracking-tight italic border-none focus:ring-0 cursor-pointer hover:underline"
-                                                >
-                                                    {agents.map(a => (
-                                                        <option key={a.id} value={a.id}>{a.full_name}</option>
-                                                    ))}
-                                                </select>
-                                            ) : (
-                                                <button
-                                                    onClick={() => handleUpdateTicket(ticket.id, { 
-                                                        assigned_agent_id: user.id,
-                                                        status: 'in progress'
-                                                    })}
-                                                    className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-[9px] font-black uppercase tracking-widest border border-indigo-100 hover:bg-indigo-600 hover:text-white transition-all shadow-sm"
-                                                >
-                                                    Claim
-                                                </button>
-                                            )}
-                                        </div>
-                                    </td>
-
-                                    {/* Status (Editable) */}
-                                    <td className="px-6 py-6">
-                                        <div className="flex items-center gap-2">
-                                            <div className={`w-1.5 h-1.5 rounded-full ${ticket.status?.toLowerCase() === 'resolved' || ticket.status?.toLowerCase() === 'closed' ? 'bg-emerald-400' : 'bg-amber-500 animate-pulse'}`}></div>
-                                            <Select
-                                                value={String(ticket.status || 'open').toLowerCase()}
-                                                onChange={(e) => handleUpdateTicket(ticket.id, { status: e.target.value })}
-                                                buttonClassName="bg-transparent text-[10px] font-black text-slate-600 uppercase tracking-widest outline-none cursor-pointer flex justify-between items-center w-full"
-                                                options={statuses.filter(s => s !== 'All').map(s => ({ value: s.toLowerCase(), label: s }))}
-                                            />
-                                        </div>
-                                    </td>
-
-                                    {/* SLA Badge */}
-                                    <td className="px-6 py-6">
-                                        <SLABadge
-                                            priority={ticket.priority}
-                                            createdAt={ticket.created_at}
-                                            status={ticket.status}
-                                        />
-                                    </td>
-
-                                    {/* Action: Open Ticket */}
-                                    <td className="px-6 py-6 text-center">
-                                        <div className="flex items-center justify-center gap-2">
-                                            <button
-                                                onClick={() => navigate(`/admin/ticket/${ticket.id}`)}
-                                                className="p-2 bg-slate-900 text-white rounded-xl hover:bg-emerald-600 transition-all shadow-lg shadow-slate-900/10 hover:shadow-emerald-500/20"
-                                                title="Open Detailed View"
-                                            >
-                                                <ArrowUpRight size={14} />
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
+                                <AdminTicketRow
+                                    key={ticket.id}
+                                    ticket={ticket}
+                                    isUpdating={isUpdating}
+                                    agents={agents}
+                                    priorities={priorities}
+                                    statuses={statuses}
+                                    user={user}
+                                    handleUpdateTicket={handleUpdateTicket}
+                                    navigate={navigate}
+                                    getPriorityStyle={getPriorityStyle}
+                                    getConfidenceColor={getConfidenceColor}
+                                />
                             ))}
                         </tbody>
                     </table>

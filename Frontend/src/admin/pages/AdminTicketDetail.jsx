@@ -14,6 +14,7 @@ import { Select } from "../../components/ui/select";
 import TicketChat from "../../components/shared/TicketChat";
 import { formatTicketId } from "../../utils/format";
 import SLABadge from "../components/SLABadge";
+import SLANotificationToggle from "../../components/shared/SLANotificationToggle";
 import { formatFullTimestamp } from "../../utils/dateUtils";
 import TicketTimeline from "../../user/components/TicketTimeline";
 
@@ -237,12 +238,18 @@ const AdminTicketDetail = () => {
                             <span style={{ fontSize: '10px', fontWeight: 700, color: '#475569', background: '#f1f5f9', padding: '2px 8px', borderRadius: '100px', textTransform: 'uppercase' }}>
                                 {ticket.assignee?.full_name || 'UNASSIGNED'}
                             </span>
-                            <SLABadge priority={displayPriority} createdAt={ticket.created_at} status={displayStatus} compact />
+                            <SLABadge
+                                ticket={{ ...ticket, priority: displayPriority, status: displayStatus }}
+                                priority={displayPriority}
+                                createdAt={ticket.created_at}
+                                status={displayStatus}
+                            />
                         </div>
                     </div>
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', maxWidth: 'max-content' }}>
+                    <SLANotificationToggle compact />
                     {!ticket.status?.toLowerCase()?.includes('resolv') ? (
                         <>
                             {ticket.status?.toLowerCase() !== 'in progress' && (

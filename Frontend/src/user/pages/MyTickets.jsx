@@ -11,6 +11,9 @@ import { Badge } from "../../components/ui/badge";
 import { Select } from "../../components/ui/select";
 import { formatTicketId } from "../../utils/format";
 import TicketStatusBadge from "../components/TicketStatusBadge";
+import SLACountdownTimer from "../../components/shared/SLACountdownTimer";
+import { useSLACountdown } from "../../hooks/useSLACountdown";
+import { getVisualAlertClasses } from "../../utils/slaUtils";
 import { formatTimelineDate, getTimeZoneAbbr } from "../../utils/dateUtils";
 import {
     Tooltip,
@@ -114,10 +117,88 @@ function MyTickets() {
 
     const getPriorityColor = (priority) => {
         const p = (priority || '').toLowerCase();
-        if (p === 'high' || p === 'critical') return 'text-red-600 font-bold';
-        if (p === 'medium') return 'text-amber-600 font-bold';
-        if (p === 'low') return 'text-blue-600 font-bold';
+        if (p === 'high' || p === 'critical' || p === 'p1' || p === 'p2') return 'text-red-600 font-bold';
+        if (p === 'medium' || p === 'p3') return 'text-amber-600 font-bold';
+        if (p === 'low' || p === 'p4') return 'text-blue-600 font-bold';
         return 'text-gray-600';
+    };
+
+    const UserTicketRow = ({ ticket }) => {
+        const sla = useSLACountdown(ticket);
+        const urgencyAlertClass = getVisualAlertClasses(sla?.urgencyLevel, { isRow: true });
+
+        return (
+            <tr
+                key={ticket.id}
+                onClick={() => navigate(`/ticket/${ticket.id}`)}
+                className={`group hover:bg-emerald-50/30 transition-colors cursor-pointer ${urgencyAlertClass}`}
+            >
+                <td className="px-6 py-4">
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <span className="font-mono font-bold text-gray-900 text-sm">#{formatTicketId(ticket.id)}</span>
+                        </TooltipTrigger>
+                        <TooltipContent
+                            side="top"
+                            className="bg-gray-900 text-white border-none p-4 w-[300px] shadow-xl rounded-xl"
+                            sideOffset={10}
+                        >
+                            <div className="space-y-3">
+                                <div>
+                                     <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-1">Issue Overview</p>
+                                     <p className="text-sm font-medium leading-relaxed overflow-hidden text-ellipsis whitespace-nowrap">{ticket.summary || ticket.description || "No description provided"}</p>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-1">Category</p>
+                                        <p className="text-sm font-medium">{ticket.category || 'General'}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-1">Priority</p>
+                                        <p className="text-sm font-medium capitalize">{ticket.priority || 'medium'}</p>
+                                    </div>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-1">Assigned Unit</p>
+                                    <p className="text-sm font-medium flex items-center gap-1.5"><ShieldCheck size={14} className="text-emerald-400" />{ticket.assigned_team || 'General Support'}</p>
+                                </div>
+                            </div>
+                        </TooltipContent>
+                    </Tooltip>
+                </td>
+                <td className="px-6 py-4 w-1/3 max-w-[300px]">
+                     <p className="text-sm font-semibold text-gray-900 truncate group-hover:text-emerald-700 transition-colors">
+                         {ticket.summary || ticket.subject || ticket.description || "No subject"}
+                     </p>
+                </td>
+                <td className="px-6 py-4">
+                    <span className="text-sm font-medium text-gray-600 bg-gray-100 px-2.5 py-1 rounded-md">
+                        {ticket.category || 'General'}
+                    </span>
+                </td>
+                <td className="px-6 py-4">
+                    <TicketStatusBadge status={ticket.status} />
+                </td>
+                <td className="px-6 py-4">
+                    <span className={`text-sm capitalize ${getPriorityColor(ticket.priority)}`}>
+                        {ticket.priority || 'medium'}
+                    </span>
+                </td>
+                <td className="px-6 py-4">
+                    <SLACountdownTimer ticket={ticket} compact />
+                </td>
+                <td className="px-6 py-4">
+                    <div className="flex flex-col">
+                        <span className="text-sm font-semibold text-gray-700">
+                            {formatTimelineDate(ticket.created_at)}
+                        </span>
+                        <span className="text-[10px] text-emerald-600 font-black uppercase tracking-widest mt-0.5">
+                            {getTimeZoneAbbr()} Node
+                        </span>
+                    </div>
+                </td>
+            </tr>
+        );
     };
 
     return (
@@ -269,79 +350,14 @@ function MyTickets() {
                                     <th className="px-6 py-4 text-xs font-black text-gray-500 uppercase tracking-widest">Category</th>
                                     <th className="px-6 py-4 text-xs font-black text-gray-500 uppercase tracking-widest">Status</th>
                                     <th className="px-6 py-4 text-xs font-black text-gray-500 uppercase tracking-widest">Priority</th>
+                                    <th className="px-6 py-4 text-xs font-black text-gray-500 uppercase tracking-widest">SLA Countdown</th>
                                     <th className="px-6 py-4 text-xs font-black text-gray-500 uppercase tracking-widest">Submitted</th>
                                 </tr>
                             </thead>
                             <TooltipProvider delayDuration={300}>
                                 <tbody className="divide-y divide-gray-100">
                                     {filteredTickets.map(ticket => (
-                                        <tr
-                                            key={ticket.id}
-                                            onClick={() => navigate(`/ticket/${ticket.id}`)}
-                                            className="group hover:bg-emerald-50/30 transition-colors cursor-pointer"
-                                        >
-                                            <td className="px-6 py-4">
-                                                <Tooltip>
-                                                    <TooltipTrigger asChild>
-                                                        <span className="font-mono font-bold text-gray-900 text-sm">#{formatTicketId(ticket.id)}</span>
-                                                    </TooltipTrigger>
-                                                    <TooltipContent
-                                                        side="top"
-                                                        className="bg-gray-900 text-white border-none p-4 w-[300px] shadow-xl rounded-xl"
-                                                        sideOffset={10}
-                                                    >
-                                                        <div className="space-y-3">
-                                                            <div>
-                                                                 <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-1">Issue Overview</p>
-                                                                 <p className="text-sm font-medium leading-relaxed overflow-hidden text-ellipsis whitespace-nowrap">{ticket.summary || ticket.description || "No description provided"}</p>
-                                                            </div>
-                                                            <div className="grid grid-cols-2 gap-3">
-                                                                <div>
-                                                                    <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-1">Category</p>
-                                                                    <p className="text-sm font-medium">{ticket.category || 'General'}</p>
-                                                                </div>
-                                                                <div>
-                                                                    <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-1">Priority</p>
-                                                                    <p className="text-sm font-medium capitalize">{ticket.priority || 'medium'}</p>
-                                                                </div>
-                                                            </div>
-                                                            <div>
-                                                                <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-1">Assigned Unit</p>
-                                                                <p className="text-sm font-medium flex items-center gap-1.5"><ShieldCheck size={14} className="text-emerald-400" />{ticket.assigned_team || 'General Support'}</p>
-                                                            </div>
-                                                        </div>
-                                                    </TooltipContent>
-                                                </Tooltip>
-                                            </td>
-                                            <td className="px-6 py-4 w-1/3 max-w-[300px]">
-                                                 <p className="text-sm font-semibold text-gray-900 truncate group-hover:text-emerald-700 transition-colors">
-                                                     {ticket.summary || ticket.subject || ticket.description || "No subject"}
-                                                 </p>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <span className="text-sm font-medium text-gray-600 bg-gray-100 px-2.5 py-1 rounded-md">
-                                                    {ticket.category || 'General'}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <TicketStatusBadge status={ticket.status} />
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <span className={`text-sm capitalize ${getPriorityColor(ticket.priority)}`}>
-                                                    {ticket.priority || 'medium'}
-                                                </span>
-                                            </td>
-                                             <td className="px-6 py-4">
-                                                 <div className="flex flex-col">
-                                                     <span className="text-sm font-semibold text-gray-700">
-                                                         {formatTimelineDate(ticket.created_at)}
-                                                     </span>
-                                                     <span className="text-[10px] text-emerald-600 font-black uppercase tracking-widest mt-0.5">
-                                                         {getTimeZoneAbbr()} Node
-                                                     </span>
-                                                 </div>
-                                             </td>
-                                        </tr>
+                                        <UserTicketRow key={ticket.id} ticket={ticket} />
                                     ))}
                                 </tbody>
                             </TooltipProvider>

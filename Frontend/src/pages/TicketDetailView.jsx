@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import useTicketStore from '../store/ticketStore';
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import SLACountdownTimer from "../components/shared/SLACountdownTimer";
 
 function TicketDetailView() {
     const { ticket_id } = useParams();
@@ -154,7 +155,7 @@ function TicketDetailView() {
                                         {ticket.summary}
                                     </p>
                                 </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
                                         <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Assigned Team</label>
                                         <div className="flex items-center gap-2 font-bold text-gray-700">
@@ -168,6 +169,10 @@ function TicketDetailView() {
                                             <div className={`w-2 h-2 rounded-full ${isResolved ? 'bg-emerald-600' : 'bg-amber-500 animate-pulse'}`}></div>
                                             {ticket.status}
                                         </div>
+                                    </div>
+                                    <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">SLA Countdown</label>
+                                        <SLACountdownTimer ticket={ticket} showProgress />
                                     </div>
                                 </div>
                             </CardContent>
