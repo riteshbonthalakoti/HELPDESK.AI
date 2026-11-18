@@ -18,11 +18,11 @@ export interface CSATSurveyFeedback {
   ticketId: string;
   agentId: string;
   category: string;
-  rating: RatingValue | number; // 1 to 5 star rating
+  rating: RatingValue; // Exactly 1 to 5 numeric integer rating
   commentary?: string;
   firstContactResolved?: boolean;
-  resolutionTimeMs?: number; // Total resolution time in milliseconds
-  responseLatencyMs?: number; // First response or median response latency in milliseconds
+  resolutionTimeMs?: number; // Total resolution time in milliseconds (optional, >= 0)
+  responseLatencyMs?: number; // First response or median response latency in milliseconds (optional, >= 0)
   escalated?: boolean;
   timestamp: string | Date;
   metadata?: Record<string, unknown>;
@@ -57,7 +57,7 @@ export interface CSATScoreMetrics {
 
 export interface NPSMetrics {
   totalResponses: number;
-  promoters: number; // ratings 5 (or 4-5 if configured, standard 5-star NPS: 5 = promoter, 4 = passive, 1-3 = detractor)
+  promoters: number; // ratings 5 (standard 5-star NPS: 5 = promoter, 4 = passive, 1-3 = detractor)
   passives: number;  // rating 4
   detractors: number; // ratings 1, 2, 3
   npsScore: number;  // % Promoters - % Detractors, range -100 to +100
@@ -124,7 +124,7 @@ export interface ExecutiveDashboardSummary {
  * Example: 3720000 ms -> "1h 2m" or "45s" or "0m"
  */
 export function formatDuration(ms: number): string {
-  if (isNaN(ms) || ms <= 0) return '0m';
+  if (typeof ms !== 'number' || !Number.isFinite(ms) || ms <= 0) return '0m';
 
   const totalSeconds = Math.floor(ms / 1000);
   const days = Math.floor(totalSeconds / 86400);
@@ -157,6 +157,7 @@ export function calculateMedian(numbers: number[]): number {
 
 /**
  * Validates a single feedback record.
+ * Type predicate returns true only if the object genuinely satisfies CSATSurveyFeedback.
  */
 export function validateFeedback(feedback: unknown): feedback is CSATSurveyFeedback {
   if (!feedback || typeof feedback !== 'object') {
@@ -175,8 +176,14 @@ export function validateFeedback(feedback: unknown): feedback is CSATSurveyFeedb
     throw new Error('Feedback must contain a valid non-empty category');
   }
 
-  const rating = Number(fb.rating);
-  if (isNaN(rating) || !Number.isInteger(rating) || rating < 1 || rating > 5) {
+  // Reject strings or non-numbers: rating must be a finite numeric integer in 1..5
+  if (
+    typeof fb.rating !== 'number' ||
+    !Number.isFinite(fb.rating) ||
+    !Number.isInteger(fb.rating) ||
+    fb.rating < 1 ||
+    fb.rating > 5
+  ) {
     throw new RangeError(`Rating must be an integer between 1 and 5 (received: ${fb.rating})`);
   }
 
@@ -189,12 +196,25 @@ export function validateFeedback(feedback: unknown): feedback is CSATSurveyFeedb
     throw new Error(`Invalid timestamp format: ${fb.timestamp}`);
   }
 
-  if (fb.resolutionTimeMs !== undefined && (typeof fb.resolutionTimeMs !== 'number' || fb.resolutionTimeMs < 0)) {
-    throw new RangeError('resolutionTimeMs must be a non-negative number');
+  // Duration and latency validation: must be finite and >= 0 if defined
+  if (fb.resolutionTimeMs !== undefined) {
+    if (
+      typeof fb.resolutionTimeMs !== 'number' ||
+      !Number.isFinite(fb.resolutionTimeMs) ||
+      fb.resolutionTimeMs < 0
+    ) {
+      throw new RangeError('resolutionTimeMs must be a finite non-negative number');
+    }
   }
 
-  if (fb.responseLatencyMs !== undefined && (typeof fb.responseLatencyMs !== 'number' || fb.responseLatencyMs < 0)) {
-    throw new RangeError('responseLatencyMs must be a non-negative number');
+  if (fb.responseLatencyMs !== undefined) {
+    if (
+      typeof fb.responseLatencyMs !== 'number' ||
+      !Number.isFinite(fb.responseLatencyMs) ||
+      fb.responseLatencyMs < 0
+    ) {
+      throw new RangeError('responseLatencyMs must be a finite non-negative number');
+    }
   }
 
   return true;
@@ -223,12 +243,12 @@ export class CSATAggregator {
       ticketId: feedback.ticketId.trim(),
       agentId: feedback.agentId.trim(),
       category: feedback.category.trim(),
-      rating: Number(feedback.rating) as RatingValue,
-      commentary: feedback.commentary ? feedback.commentary.trim() : '',
+      rating: feedback.rating as RatingValue,
+      commentary: typeof feedback.commentary === 'string' ? feedback.commentary.trim() : '',
       firstContactResolved: Boolean(feedback.firstContactResolved),
       escalated: Boolean(feedback.escalated),
-      resolutionTimeMs: feedback.resolutionTimeMs !== undefined ? feedback.resolutionTimeMs : 0,
-      responseLatencyMs: feedback.responseLatencyMs !== undefined ? feedback.responseLatencyMs : 0,
+      resolutionTimeMs: feedback.resolutionTimeMs !== undefined ? feedback.resolutionTimeMs : undefined,
+      responseLatencyMs: feedback.responseLatencyMs !== undefined ? feedback.responseLatencyMs : undefined,
       timestamp: new Date(feedback.timestamp),
     };
     this.feedbackRecords.push(sanitized);
@@ -430,11 +450,12 @@ export class CSATAggregator {
 
   /**
    * Compute Average Resolution Time (ART) in milliseconds.
+   * Includes measured zero durations (>= 0), excludes missing (undefined).
    */
   public computeART(records: CSATSurveyFeedback[] = this.feedbackRecords): number {
     const validTimes = records
       .map((r) => r.resolutionTimeMs)
-      .filter((t): t is number => typeof t === 'number' && t > 0);
+      .filter((t): t is number => typeof t === 'number' && Number.isFinite(t) && t >= 0);
 
     if (validTimes.length === 0) return 0;
     const total = validTimes.reduce((acc, curr) => acc + curr, 0);
@@ -443,11 +464,12 @@ export class CSATAggregator {
 
   /**
    * Compute Median Response Latency in milliseconds.
+   * Excludes missing observations (undefined), but includes measured zero values.
    */
   public computeMedianResponseLatency(records: CSATSurveyFeedback[] = this.feedbackRecords): number {
     const latencies = records
       .map((r) => r.responseLatencyMs)
-      .filter((l): l is number => typeof l === 'number' && l >= 0);
+      .filter((l): l is number => typeof l === 'number' && Number.isFinite(l) && l >= 0);
 
     return calculateMedian(latencies);
   }
@@ -462,23 +484,32 @@ export class CSATAggregator {
   }
 
   /**
-   * Compute Workload Distribution across all agents.
-   * Returns a map of agentId -> { count, percentage }
+   * Compute Workload Distribution across all agents using prototype-free data structures.
+   * Groups agents by normalized case-insensitive key and preserves deterministic display ID.
+   * Returns a prototype-free dictionary: Record<string, { ticketCount: number; percentage: number }>
    */
   public computeWorkloadDistribution(
     records: CSATSurveyFeedback[] = this.feedbackRecords
   ): Record<string, { ticketCount: number; percentage: number }> {
     const total = records.length;
-    const distribution: Record<string, { ticketCount: number; percentage: number }> = {};
+    const distribution: Record<string, { ticketCount: number; percentage: number }> = Object.create(null);
     if (total === 0) return distribution;
 
-    const counts: Record<string, number> = {};
+    // Use Map to avoid prototype key collisions and group case-insensitively
+    const agentMap = new Map<string, { displayId: string; count: number }>();
+
     for (const item of records) {
-      counts[item.agentId] = (counts[item.agentId] || 0) + 1;
+      const normalizedKey = item.agentId.toLowerCase();
+      const existing = agentMap.get(normalizedKey);
+      if (existing) {
+        existing.count++;
+      } else {
+        agentMap.set(normalizedKey, { displayId: item.agentId, count: 1 });
+      }
     }
 
-    for (const [agentId, count] of Object.entries(counts)) {
-      distribution[agentId] = {
+    for (const { displayId, count } of agentMap.values()) {
+      distribution[displayId] = {
         ticketCount: count,
         percentage: Math.round((count / total) * 10000) / 100,
       };
@@ -492,12 +523,16 @@ export class CSATAggregator {
   // ==========================================================================
 
   /**
-   * Get detailed performance metrics for a specific agent.
+   * Get detailed performance metrics for a specific agent (case-insensitive lookup).
    */
   public getAgentPerformance(agentId: string, records: CSATSurveyFeedback[] = this.feedbackRecords): AgentPerformanceMetrics {
-    const agentRecords = records.filter((r) => r.agentId.toLowerCase() === agentId.trim().toLowerCase());
+    const normalizedTarget = agentId.trim().toLowerCase();
+    const agentRecords = records.filter((r) => r.agentId.toLowerCase() === normalizedTarget);
     const totalTickets = agentRecords.length;
     const totalEngineTickets = records.length;
+
+    // Retain deterministic display ID if found, else original passed in
+    const displayId = agentRecords.length > 0 ? agentRecords[0].agentId : agentId;
 
     const csatMetrics = this.computeCSAT(agentRecords);
     const npsMetrics = this.computeNPS(agentRecords);
@@ -510,10 +545,18 @@ export class CSATAggregator {
       ? Math.round((totalTickets / totalEngineTickets) * 10000) / 100
       : 0;
 
-    const categoriesHandled = Array.from(new Set(agentRecords.map((r) => r.category)));
+    // Unique categories handled by this agent
+    const catMap = new Map<string, string>();
+    for (const r of agentRecords) {
+      const normCat = r.category.toLowerCase();
+      if (!catMap.has(normCat)) {
+        catMap.set(normCat, r.category);
+      }
+    }
+    const categoriesHandled = Array.from(catMap.values());
 
     return {
-      agentId,
+      agentId: displayId,
       totalTickets,
       csatMetrics,
       npsMetrics,
@@ -531,18 +574,29 @@ export class CSATAggregator {
 
   /**
    * Get performance metrics for all unique agents.
+   * Groups case-insensitively and preserves deterministic display ID without duplicate counting.
    */
   public getAllAgentsPerformance(records: CSATSurveyFeedback[] = this.feedbackRecords): AgentPerformanceMetrics[] {
-    const uniqueAgentIds = Array.from(new Set(records.map((r) => r.agentId)));
-    return uniqueAgentIds.map((id) => this.getAgentPerformance(id, records));
+    const agentMap = new Map<string, string>();
+    for (const r of records) {
+      const norm = r.agentId.toLowerCase();
+      if (!agentMap.has(norm)) {
+        agentMap.set(norm, r.agentId);
+      }
+    }
+
+    return Array.from(agentMap.values()).map((displayId) => this.getAgentPerformance(displayId, records));
   }
 
   /**
-   * Get category-level performance metrics.
+   * Get category-level performance metrics (case-insensitive lookup).
    */
   public getCategoryPerformance(category: string, records: CSATSurveyFeedback[] = this.feedbackRecords): CategoryPerformanceMetrics {
-    const catRecords = records.filter((r) => r.category.toLowerCase() === category.trim().toLowerCase());
+    const normalizedTarget = category.trim().toLowerCase();
+    const catRecords = records.filter((r) => r.category.toLowerCase() === normalizedTarget);
     const totalTickets = catRecords.length;
+
+    const displayCategory = catRecords.length > 0 ? catRecords[0].category : category;
 
     const csatMetrics = this.computeCSAT(catRecords);
     const npsMetrics = this.computeNPS(catRecords);
@@ -550,10 +604,19 @@ export class CSATAggregator {
     const averageResolutionTimeMs = this.computeART(catRecords);
     const medianResponseLatencyMs = this.computeMedianResponseLatency(catRecords);
     const escalationFrequencyPercentage = this.computeEscalationFrequency(catRecords);
-    const agentsInvolved = Array.from(new Set(catRecords.map((r) => r.agentId)));
+
+    // Group agent IDs involved case-insensitively
+    const agentMap = new Map<string, string>();
+    for (const r of catRecords) {
+      const normAgent = r.agentId.toLowerCase();
+      if (!agentMap.has(normAgent)) {
+        agentMap.set(normAgent, r.agentId);
+      }
+    }
+    const agentsInvolved = Array.from(agentMap.values());
 
     return {
-      category,
+      category: displayCategory,
       totalTickets,
       csatMetrics,
       npsMetrics,
@@ -569,10 +632,20 @@ export class CSATAggregator {
 
   /**
    * Get performance metrics for all categories.
+   * Groups case-insensitively and preserves deterministic display category without duplicate counting.
    */
   public getAllCategoriesPerformance(records: CSATSurveyFeedback[] = this.feedbackRecords): CategoryPerformanceMetrics[] {
-    const uniqueCategories = Array.from(new Set(records.map((r) => r.category)));
-    return uniqueCategories.map((cat) => this.getCategoryPerformance(cat, records));
+    const categoryMap = new Map<string, string>();
+    for (const r of records) {
+      const norm = r.category.toLowerCase();
+      if (!categoryMap.has(norm)) {
+        categoryMap.set(norm, r.category);
+      }
+    }
+
+    return Array.from(categoryMap.values()).map((displayCategory) =>
+      this.getCategoryPerformance(displayCategory, records)
+    );
   }
 
   // ==========================================================================
@@ -617,7 +690,8 @@ export class CSATAggregator {
         totalTickets: a.totalTickets,
       }));
 
-    const categoryBreakdown: Record<string, CategoryPerformanceMetrics> = {};
+    // Prototype-free dictionary for category breakdown to safely allow categories like '__proto__'
+    const categoryBreakdown: Record<string, CategoryPerformanceMetrics> = Object.create(null);
     const categories = this.getAllCategoriesPerformance(filteredRecords);
     for (const cat of categories) {
       categoryBreakdown[cat.category] = cat;
@@ -647,16 +721,31 @@ export class CSATAggregator {
   }
 
   // ==========================================================================
-  // CSV Export
+  // CSV Export & Formula Neutralization
   // ==========================================================================
 
   /**
-   * Escape CSV values safely following RFC 4180.
+   * Escape CSV values safely following RFC 4180 and neutralize formula injection.
+   * If val is a string starting with spreadsheet formula characters (=, +, -, @),
+   * prepend a tab character to neutralize execution while preserving text.
+   * Numeric fields are preserved unchanged and cannot be corrupted.
    */
   private escapeCsvValue(val: unknown): string {
     if (val === undefined || val === null) return '';
-    const str = String(val);
-    if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+
+    // If it's a number, output as string without formula neutralization (even if negative)
+    if (typeof val === 'number') {
+      return String(val);
+    }
+
+    let str = String(val);
+    const isFormulaLeading = /^[=+\-@]/.test(str);
+    if (isFormulaLeading) {
+      // Prepend tab to neutralize formula execution in Excel/Calc
+      str = `\t${str}`;
+    }
+
+    if (isFormulaLeading || str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
       return `"${str.replace(/"/g, '""')}"`;
     }
     return str;
@@ -686,8 +775,8 @@ export class CSATAggregator {
       this.escapeCsvValue(r.category),
       this.escapeCsvValue(r.rating),
       this.escapeCsvValue(r.firstContactResolved ? 'true' : 'false'),
-      this.escapeCsvValue(r.resolutionTimeMs ?? 0),
-      this.escapeCsvValue(r.responseLatencyMs ?? 0),
+      this.escapeCsvValue(r.resolutionTimeMs !== undefined ? r.resolutionTimeMs : ''),
+      this.escapeCsvValue(r.responseLatencyMs !== undefined ? r.responseLatencyMs : ''),
       this.escapeCsvValue(r.escalated ? 'true' : 'false'),
       this.escapeCsvValue(new Date(r.timestamp).toISOString()),
       this.escapeCsvValue(r.commentary ?? ''),

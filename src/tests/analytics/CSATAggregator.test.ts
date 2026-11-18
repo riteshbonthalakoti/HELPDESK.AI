@@ -94,6 +94,8 @@ describe('CSATAggregator & Agent Performance Analytics Test Suite', () => {
       assert.strictEqual(formatDuration(3600000), '1h');
       assert.strictEqual(formatDuration(3660000), '1h 1m');
       assert.strictEqual(formatDuration(90000000), '1d 1h');
+      assert.strictEqual(formatDuration(NaN), '0m');
+      assert.strictEqual(formatDuration(Infinity), '0m');
     });
 
     it('calculateMedian correctly computes median for odd and even length arrays', () => {
@@ -144,32 +146,84 @@ describe('CSATAggregator & Agent Performance Analytics Test Suite', () => {
 
     it('rejects out of range or non-integer ratings', () => {
       assert.throws(
-        () => validateFeedback({ ...sampleFeedbacks[0], rating: 0 }),
+        () => validateFeedback({ ...sampleFeedbacks[0], rating: 0 as any }),
         /Rating must be an integer between 1 and 5/
       );
       assert.throws(
-        () => validateFeedback({ ...sampleFeedbacks[0], rating: 6 }),
+        () => validateFeedback({ ...sampleFeedbacks[0], rating: 6 as any }),
         /Rating must be an integer between 1 and 5/
       );
       assert.throws(
-        () => validateFeedback({ ...sampleFeedbacks[0], rating: 3.5 }),
+        () => validateFeedback({ ...sampleFeedbacks[0], rating: 3.5 as any }),
         /Rating must be an integer between 1 and 5/
+      );
+    });
+
+    it('rejects string ratings like "5" and "4" to enforce strict numeric narrowing', () => {
+      assert.throws(
+        () => validateFeedback({ ...sampleFeedbacks[0], rating: '5' as any }),
+        /Rating must be an integer between 1 and 5/
+      );
+      assert.throws(
+        () => validateFeedback({ ...sampleFeedbacks[0], rating: '4' as any }),
+        /Rating must be an integer between 1 and 5/
+      );
+    });
+
+    it('rejects non-finite timing measurements (NaN, Infinity, -Infinity)', () => {
+      assert.throws(
+        () => validateFeedback({ ...sampleFeedbacks[0], resolutionTimeMs: NaN }),
+        /resolutionTimeMs must be a finite non-negative number/
+      );
+      assert.throws(
+        () => validateFeedback({ ...sampleFeedbacks[0], resolutionTimeMs: Infinity }),
+        /resolutionTimeMs must be a finite non-negative number/
+      );
+      assert.throws(
+        () => validateFeedback({ ...sampleFeedbacks[0], resolutionTimeMs: -Infinity }),
+        /resolutionTimeMs must be a finite non-negative number/
+      );
+      assert.throws(
+        () => validateFeedback({ ...sampleFeedbacks[0], responseLatencyMs: NaN }),
+        /responseLatencyMs must be a finite non-negative number/
+      );
+      assert.throws(
+        () => validateFeedback({ ...sampleFeedbacks[0], responseLatencyMs: Infinity }),
+        /responseLatencyMs must be a finite non-negative number/
       );
     });
 
     it('rejects negative resolutionTimeMs or responseLatencyMs', () => {
       assert.throws(
         () => validateFeedback({ ...sampleFeedbacks[0], resolutionTimeMs: -100 }),
-        /resolutionTimeMs must be a non-negative number/
+        /resolutionTimeMs must be a finite non-negative number/
       );
       assert.throws(
         () => validateFeedback({ ...sampleFeedbacks[0], responseLatencyMs: -50 }),
-        /responseLatencyMs must be a non-negative number/
+        /responseLatencyMs must be a finite non-negative number/
       );
     });
 
+    it('preserves zero and optional omitted durations', () => {
+      const fbWithZero: CSATSurveyFeedback = {
+        ...sampleFeedbacks[0],
+        resolutionTimeMs: 0,
+        responseLatencyMs: 0,
+      };
+      assert.strictEqual(validateFeedback(fbWithZero), true);
+
+      const fbOmitted: CSATSurveyFeedback = {
+        ticketId: 'TICK-OMIT',
+        agentId: 'agent_alice',
+        category: 'Billing',
+        rating: 5,
+        timestamp: new Date().toISOString(),
+      };
+      assert.strictEqual(validateFeedback(fbOmitted), true);
+    });
+
     it('handles batch ingestion in both strict and permissive modes', () => {
-      const invalidFeedback = { ...sampleFeedbacks[0], rating: 99 };
+      const invalidFeedback = { ...sampleFeedbacks[0], rating: 99 as any };
       // Strict mode throws
       assert.throws(() => {
         aggregator.ingestBatch([sampleFeedbacks[0], invalidFeedback as any], true);
@@ -222,6 +276,17 @@ describe('CSATAggregator & Agent Performance Analytics Test Suite', () => {
       });
     });
 
+    it('calculates averageRating of 4.5 and NPS of 50 for ratings 4 and 5', () => {
+      const agg = new CSATAggregator([sampleFeedbacks[0], sampleFeedbacks[1]]); // ratings 5 and 4
+      const csat = agg.computeCSAT();
+      assert.strictEqual(csat.averageRating, 4.5);
+      assert.strictEqual(csat.csatPercentage, 100);
+
+      const nps = agg.computeNPS();
+      // Promoters (5): 1 (50%), Passives (4): 1 (50%), Detractors: 0 (0%) -> NPS = 50 - 0 = 50
+      assert.strictEqual(nps.npsScore, 50);
+    });
+
     it('correctly computes Net Promoter Score (NPS)', () => {
       // Promoters (5): 2 (40%)
       // Passives (4): 1 (20%)
@@ -249,9 +314,9 @@ describe('CSATAggregator & Agent Performance Analytics Test Suite', () => {
   });
 
   // --------------------------------------------------------------------------
-  // Agent Performance Metrics
+  // Agent Performance & Timing Measurements Tests
   // --------------------------------------------------------------------------
-  describe('Agent Performance Metrics', () => {
+  describe('Agent Performance & Timing Measurements', () => {
     beforeEach(() => {
       aggregator.ingestBatch(sampleFeedbacks);
     });
@@ -265,19 +330,71 @@ describe('CSATAggregator & Agent Performance Analytics Test Suite', () => {
       assert.strictEqual(new CSATAggregator().computeFCR(), 0);
     });
 
-    it('calculates Average Resolution Time (ART)', () => {
-      // 1800000, 3600000, 7200000, 14400000, 5400000
-      // Sum = 32,400,000 ms. Avg = 32,400,000 / 5 = 6,480,000 ms = 1h 48m
+    it('calculates Average Resolution Time (ART) including measured zero durations', () => {
+      // Normal dataset: 1800000, 3600000, 7200000, 14400000, 5400000 -> Avg = 6,480,000 ms
       const art = aggregator.computeART();
       assert.strictEqual(art, 6480000);
+
+      // Regression test for Finding 4: Resolution durations 0 and 60000 -> Expected ART: 30000 ms
+      const aggZero = new CSATAggregator();
+      aggZero.ingestBatch([
+        {
+          ticketId: 'T-Z1',
+          agentId: 'a1',
+          category: 'General',
+          rating: 5,
+          resolutionTimeMs: 0,
+          timestamp: new Date().toISOString(),
+        },
+        {
+          ticketId: 'T-Z2',
+          agentId: 'a1',
+          category: 'General',
+          rating: 5,
+          resolutionTimeMs: 60000,
+          timestamp: new Date().toISOString(),
+        },
+      ]);
+      assert.strictEqual(aggZero.computeART(), 30000);
     });
 
-    it('calculates Median Response Latency', () => {
-      // Latencies: 120000, 300000, 600000, 900000, 180000
-      // Sorted: 120000, 180000, 300000, 600000, 900000
-      // Median = 300000 (5m)
-      const median = aggregator.computeMedianResponseLatency();
-      assert.strictEqual(median, 300000);
+    it('preserves missing responseLatencyMs as undefined and excludes it from median calculation while including measured zeros', () => {
+      // Regression test for Finding 3: One record with 60000 ms, one with omitted latency -> Expected median: 60000 ms
+      const aggMissing = new CSATAggregator();
+      aggMissing.ingestBatch([
+        {
+          ticketId: 'T-L1',
+          agentId: 'a1',
+          category: 'General',
+          rating: 5,
+          responseLatencyMs: 60000,
+          timestamp: new Date().toISOString(),
+        },
+        {
+          ticketId: 'T-L2',
+          agentId: 'a1',
+          category: 'General',
+          rating: 5,
+          // omitted responseLatencyMs
+          timestamp: new Date().toISOString(),
+        },
+      ]);
+      const ingested = aggMissing.getFeedbacks();
+      assert.strictEqual(ingested[0].responseLatencyMs, 60000);
+      assert.strictEqual(ingested[1].responseLatencyMs, undefined);
+      assert.strictEqual(aggMissing.computeMedianResponseLatency(), 60000);
+
+      // And a measured zero is genuinely included:
+      aggMissing.ingestFeedback({
+        ticketId: 'T-L3',
+        agentId: 'a1',
+        category: 'General',
+        rating: 5,
+        responseLatencyMs: 0,
+        timestamp: new Date().toISOString(),
+      });
+      // values: [60000, 0] -> sorted [0, 60000] -> median 30000
+      assert.strictEqual(aggMissing.computeMedianResponseLatency(), 30000);
     });
 
     it('calculates Escalation Frequency', () => {
@@ -286,7 +403,7 @@ describe('CSATAggregator & Agent Performance Analytics Test Suite', () => {
       assert.strictEqual(esc, 40);
     });
 
-    it('computes workload distribution across agents', () => {
+    it('computes workload distribution across agents using prototype-free data structures', () => {
       const workload = aggregator.computeWorkloadDistribution();
       // Total 5 tickets:
       // alice: 2 (40%)
@@ -298,6 +415,57 @@ describe('CSATAggregator & Agent Performance Analytics Test Suite', () => {
       assert.strictEqual(workload['agent_bob'].percentage, 40);
       assert.strictEqual(workload['agent_charlie'].ticketCount, 1);
       assert.strictEqual(workload['agent_charlie'].percentage, 20);
+
+      // Verify prototype-free dictionary
+      assert.strictEqual(Object.getPrototypeOf(workload), null);
+    });
+
+    it('safely handles reserved agent IDs like __proto__, constructor, and toString', () => {
+      // Regression test for Finding 5
+      const aggProto = new CSATAggregator();
+      aggProto.ingestBatch([
+        { ticketId: 'T-1', agentId: '__proto__', category: 'General', rating: 5, timestamp: new Date().toISOString() },
+        { ticketId: 'T-2', agentId: 'constructor', category: 'General', rating: 4, timestamp: new Date().toISOString() },
+        { ticketId: 'T-3', agentId: 'toString', category: 'General', rating: 5, timestamp: new Date().toISOString() },
+        { ticketId: 'T-4', agentId: 'regular_agent', category: 'General', rating: 5, timestamp: new Date().toISOString() },
+      ]);
+
+      const workload = aggProto.computeWorkloadDistribution();
+      assert.strictEqual(workload['__proto__'].ticketCount, 1);
+      assert.strictEqual(workload['__proto__'].percentage, 25);
+      assert.strictEqual(workload['constructor'].ticketCount, 1);
+      assert.strictEqual(workload['constructor'].percentage, 25);
+      assert.strictEqual(workload['toString'].ticketCount, 1);
+      assert.strictEqual(workload['toString'].percentage, 25);
+      assert.strictEqual(workload['regular_agent'].ticketCount, 1);
+      assert.strictEqual(workload['regular_agent'].percentage, 25);
+
+      // Verify individual performance lookup
+      const protoPerf = aggProto.getAgentPerformance('__proto__');
+      assert.strictEqual(protoPerf.agentId, '__proto__');
+      assert.strictEqual(protoPerf.totalTickets, 1);
+      assert.strictEqual(protoPerf.csatMetrics.csatPercentage, 100);
+    });
+
+    it('performs consistent case-insensitive agent grouping without double counting', () => {
+      // Regression test for Finding 6: Alice and alice produce 1 group, 2 tickets, 100% workload
+      const aggCase = new CSATAggregator();
+      aggCase.ingestBatch([
+        { ticketId: 'T-A1', agentId: 'Alice', category: 'Billing', rating: 5, timestamp: new Date().toISOString() },
+        { ticketId: 'T-A2', agentId: 'alice', category: 'Billing', rating: 4, timestamp: new Date().toISOString() },
+      ]);
+
+      const allAgents = aggCase.getAllAgentsPerformance();
+      assert.strictEqual(allAgents.length, 1);
+      assert.strictEqual(allAgents[0].totalTickets, 2);
+      assert.strictEqual(allAgents[0].csatMetrics.csatPercentage, 100);
+      assert.strictEqual(allAgents[0].workloadSharePercentage, 100);
+
+      const workload = aggCase.computeWorkloadDistribution();
+      const keys = Object.keys(workload);
+      assert.strictEqual(keys.length, 1);
+      assert.strictEqual(workload[keys[0]].ticketCount, 2);
+      assert.strictEqual(workload[keys[0]].percentage, 100);
     });
 
     it('generates individual agent performance metrics accurately', () => {
@@ -347,6 +515,20 @@ describe('CSATAggregator & Agent Performance Analytics Test Suite', () => {
       assert.strictEqual(tech.totalTickets, 2);
       assert.strictEqual(tech.csatMetrics.csatPercentage, 50);
       assert.strictEqual(tech.escalationFrequencyPercentage, 50);
+    });
+
+    it('performs consistent case-insensitive category grouping without double counting', () => {
+      // Regression test for Finding 7: Billing and billing produce 1 group, 2 tickets
+      const aggCatCase = new CSATAggregator();
+      aggCatCase.ingestBatch([
+        { ticketId: 'T-C1', agentId: 'a1', category: 'Billing', rating: 5, timestamp: new Date().toISOString() },
+        { ticketId: 'T-C2', agentId: 'a2', category: 'billing', rating: 4, timestamp: new Date().toISOString() },
+      ]);
+
+      const allCats = aggCatCase.getAllCategoriesPerformance();
+      assert.strictEqual(allCats.length, 1);
+      assert.strictEqual(allCats[0].totalTickets, 2);
+      assert.strictEqual(allCats[0].csatMetrics.csatPercentage, 100);
     });
 
     it('retrieves metrics for all categories', () => {
@@ -430,20 +612,42 @@ describe('CSATAggregator & Agent Performance Analytics Test Suite', () => {
       assert.ok('Security' in dashboard.categoryBreakdown);
     });
 
+    it('safely handles reserved category names like __proto__ and constructor in categoryBreakdown', () => {
+      // Regression test for Finding 8
+      const aggProtoCat = new CSATAggregator();
+      aggProtoCat.ingestBatch([
+        { ticketId: 'T-P1', agentId: 'a1', category: '__proto__', rating: 5, timestamp: new Date().toISOString() },
+        { ticketId: 'T-P2', agentId: 'a1', category: 'constructor', rating: 4, timestamp: new Date().toISOString() },
+        { ticketId: 'T-P3', agentId: 'a1', category: 'Standard', rating: 5, timestamp: new Date().toISOString() },
+      ]);
+
+      const dashboard = aggProtoCat.getExecutiveDashboard();
+      assert.strictEqual(Object.getPrototypeOf(dashboard.categoryBreakdown), null);
+      assert.ok(Object.prototype.hasOwnProperty.call(dashboard.categoryBreakdown, '__proto__'));
+      assert.strictEqual(dashboard.categoryBreakdown['__proto__'].totalTickets, 1);
+      assert.strictEqual(dashboard.categoryBreakdown['__proto__'].csatMetrics.csatPercentage, 100);
+      assert.strictEqual(dashboard.categoryBreakdown['constructor'].totalTickets, 1);
+      assert.strictEqual(dashboard.categoryBreakdown['Standard'].totalTickets, 1);
+
+      // Ensure JSON serialization behaves safely without error
+      const jsonStr = JSON.stringify(dashboard);
+      assert.ok(jsonStr.includes('__proto__'));
+    });
+
     it('handles empty datasets in executive dashboard cleanly', () => {
       const emptyAgg = new CSATAggregator();
       const dashboard = emptyAgg.getExecutiveDashboard();
       assert.strictEqual(dashboard.totalTicketsAnalyzed, 0);
       assert.strictEqual(dashboard.overallCSAT.csatPercentage, 0);
       assert.strictEqual(dashboard.topPerformingAgents.length, 0);
-      assert.deepStrictEqual(dashboard.categoryBreakdown, {});
+      assert.deepStrictEqual(dashboard.categoryBreakdown, Object.create(null));
     });
   });
 
   // --------------------------------------------------------------------------
-  // CSV Export Tests
+  // CSV Export & Formula Injection Prevention Tests
   // --------------------------------------------------------------------------
-  describe('CSV Export', () => {
+  describe('CSV Export & Formula Injection Prevention', () => {
     beforeEach(() => {
       aggregator.ingestBatch(sampleFeedbacks);
     });
@@ -455,6 +659,70 @@ describe('CSATAggregator & Agent Performance Analytics Test Suite', () => {
       assert.ok(lines[0].startsWith('Ticket ID,Agent ID,Category,Rating'));
       // Check that commentary with commas was properly quoted
       assert.ok(lines[1].includes('"Super quick resolution, very courteous!"'));
+    });
+
+    it('neutralizes spreadsheet formula injection in commentary (=, +, -, @) without corrupting text or numeric fields', () => {
+      // Regression test for Finding 9
+      const aggFormula = new CSATAggregator();
+      aggFormula.ingestBatch([
+        {
+          ticketId: 'T-F1',
+          agentId: 'a1',
+          category: 'Support',
+          rating: 5,
+          commentary: '=SUM(A1:A2)',
+          resolutionTimeMs: 1000,
+          timestamp: new Date().toISOString(),
+        },
+        {
+          ticketId: 'T-F2',
+          agentId: 'a1',
+          category: 'Support',
+          rating: 4,
+          commentary: '+SUM(A1:A2)',
+          resolutionTimeMs: 2000,
+          timestamp: new Date().toISOString(),
+        },
+        {
+          ticketId: 'T-F3',
+          agentId: 'a1',
+          category: 'Support',
+          rating: 3,
+          commentary: '-formula',
+          resolutionTimeMs: 3000,
+          timestamp: new Date().toISOString(),
+        },
+        {
+          ticketId: 'T-F4',
+          agentId: 'a1',
+          category: 'Support',
+          rating: 2,
+          commentary: '@formula',
+          resolutionTimeMs: 4000,
+          timestamp: new Date().toISOString(),
+        },
+        {
+          ticketId: 'T-F5',
+          agentId: 'a1',
+          category: 'Support',
+          rating: 1,
+          commentary: 'Has "quotes" and, commas\nand newline',
+          resolutionTimeMs: 5000,
+          timestamp: new Date().toISOString(),
+        },
+      ]);
+
+      const csv = aggFormula.exportRawFeedbackCSV();
+      // Check neutralized formula values contain prepended tab
+      assert.ok(csv.includes('"\t=SUM(A1:A2)"'));
+      assert.ok(csv.includes('"\t+SUM(A1:A2)"'));
+      assert.ok(csv.includes('"\t-formula"'));
+      assert.ok(csv.includes('"\t@formula"'));
+      // Check quotes, commas, and newlines escaping
+      assert.ok(csv.includes('"Has ""quotes"" and, commas\nand newline"'));
+      // Check numeric fields remain unneutralized numbers
+      assert.ok(csv.includes('1000'));
+      assert.ok(csv.includes('2000'));
     });
 
     it('exports agent performance aggregate metrics to CSV', () => {
