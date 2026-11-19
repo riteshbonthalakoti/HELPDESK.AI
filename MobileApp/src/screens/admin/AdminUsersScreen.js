@@ -92,20 +92,32 @@ const AdminUsersScreen = () => {
       if (!user) return;
       setCurrentAdmin(user);
 
-      const { data: adminProfile } = await supabase
+      const { data: adminProfile, error: profileError } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', user.id)
         .single();
 
-      if (!adminProfile?.company) return;
+      if (profileError || !adminProfile) {
+        console.error('Fetch admin profile error in users screen:', profileError);
+        return;
+      }
 
-      // Fetch all profiles belonging to the same company
-      const { data, error } = await supabase
+      const company = adminProfile.company || 'RITESH PVT LTD';
+
+      // Fetch all profiles belonging to the same company (single-company enforcement)
+      let query = supabase
         .from('profiles')
         .select('*')
-        .eq('company', adminProfile.company)
         .order('full_name', { ascending: true });
+
+      if (adminProfile.company_id) {
+        query = query.eq('company_id', adminProfile.company_id);
+      } else {
+        query = query.eq('company', company);
+      }
+
+      const { data, error } = await query;
 
       if (!error && data) {
         // Exclude the current logged in admin themselves from directory list

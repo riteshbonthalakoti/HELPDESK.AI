@@ -123,14 +123,27 @@ const AdminTicketDetailScreen = () => {
         setOverridePriority(ticketData.priority || '');
       }
 
-      // Fetch company agents/admins
-      if (userProfile?.company) {
-        const { data: companyAgents } = await supabase
+      const resolvedTicket = ticketData || fallbackTicket;
+      const verifiedCompanyId = resolvedTicket?.company_id || userProfile?.company_id;
+      const verifiedCompanyName = resolvedTicket?.company || userProfile?.company;
+
+      // Require a verified company before loading the agent roster, scoped to ticket's company
+      if (verifiedCompanyId || verifiedCompanyName) {
+        let agentQuery = supabase
           .from('profiles')
-          .select('id, full_name, role')
-          .eq('company', userProfile.company)
+          .select('id, full_name, role, company, company_id')
           .in('role', ['admin', 'super_admin', 'agent']);
+
+        if (verifiedCompanyId) {
+          agentQuery = agentQuery.eq('company_id', verifiedCompanyId);
+        } else {
+          agentQuery = agentQuery.eq('company', verifiedCompanyName);
+        }
+
+        const { data: companyAgents } = await agentQuery;
         setAgents(companyAgents || []);
+      } else {
+        setAgents([]);
       }
 
       // Fetch messages
@@ -212,6 +225,22 @@ const AdminTicketDetailScreen = () => {
 
   const handleClaim = () => {
     if (!currentUser) return;
+
+    // Validate admin's company matches ticket company
+    const ticketCompId = ticket?.company_id;
+    const ticketCompName = ticket?.company;
+    const adminCompId = profile?.company_id;
+    const adminCompName = profile?.company;
+
+    if (ticketCompId && adminCompId && ticketCompId !== adminCompId) {
+      Alert.alert("Cross-Company Error", "Cannot claim a ticket from another company.");
+      return;
+    }
+    if (ticketCompName && adminCompName && ticketCompName !== adminCompName) {
+      Alert.alert("Cross-Company Error", "Cannot claim a ticket from another company.");
+      return;
+    }
+
     handleUpdateTicket({
       status: 'in_progress',
       assigned_agent_id: currentUser.id
@@ -245,9 +274,25 @@ const AdminTicketDetailScreen = () => {
       desc += `Re-routed to ${targetTeam}`;
     }
     if (targetAgent) {
+      const agentObj = agents.find(a => a.id === targetAgent);
+
+      // Validate assigned agent's company matches ticket company
+      const ticketCompId = ticket?.company_id;
+      const ticketCompName = ticket?.company;
+      const agentCompId = agentObj?.company_id;
+      const agentCompName = agentObj?.company;
+
+      if (ticketCompId && agentCompId && ticketCompId !== agentCompId) {
+        Alert.alert("Cross-Company Assignment Rejected", "The selected agent does not belong to this ticket's company.");
+        return;
+      }
+      if (ticketCompName && agentCompName && ticketCompName !== agentCompName) {
+        Alert.alert("Cross-Company Assignment Rejected", "The selected agent does not belong to this ticket's company.");
+        return;
+      }
+
       updates.assigned_agent_id = targetAgent;
       updates.status = 'in_progress';
-      const agentObj = agents.find(a => a.id === targetAgent);
       desc += desc ? ` and assigned to @${agentObj?.full_name || 'Agent'}` : `Assigned to @${agentObj?.full_name || 'Agent'}`;
     }
 

@@ -1,16 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet, View, Text, TouchableOpacity, ScrollView,
-  ActivityIndicator, RefreshControl, Switch, StatusBar, Alert
+  ActivityIndicator, RefreshControl, Switch, StatusBar, Alert, Platform
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
 import { COLORS, SHADOWS } from '../../styles/theme';
 import { 
   Cpu, Database, ShieldCheck, Save, RotateCcw, 
-  Clock, Bell, Inbox 
+  Clock, Bell, Inbox, Mail, ChevronRight 
 } from 'lucide-react-native';
 import { useNotification } from '../../components/NotificationProvider';
+import EmailChangeModal from '../../components/EmailChangeModal';
 import * as Haptics from 'expo-haptics';
 
 const StepperControl = ({ label, value, onValueChange, min = 0.1, max = 1.0, step = 0.05, suffix = '%' }) => {
@@ -64,6 +65,7 @@ const AdminSettingsScreen = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
 
   // Settings states
   const [confidenceThreshold, setConfidenceThreshold] = useState(0.80);
@@ -115,6 +117,23 @@ const AdminSettingsScreen = () => {
     } finally {
       setLoading(false);
       setRefreshing(false);
+    }
+  }, []);
+
+  const refreshProfile = useCallback(async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+      if (profileData) {
+        setProfile(profileData);
+      }
+    } catch (e) {
+      console.error('Refresh profile error:', e);
     }
   }, []);
 
@@ -202,6 +221,34 @@ const AdminSettingsScreen = () => {
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} tintColor={COLORS.primary} />}
       >
+        {/* Section 0: Account Email / Gmail Verification */}
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeader}>
+            <Mail size={20} color={COLORS.primary} />
+            <Text style={styles.sectionTitle}>Account Email / Verification</Text>
+          </View>
+          <Text style={styles.sectionDesc}>
+            Switch your {profile?.company || 'RITESH PVT LTD'} email directly using a 6-digit OTP sent to your new email. Direct verification to the new email only, no old-email link.
+          </Text>
+
+          <View style={styles.emailCardBody}>
+            <View style={styles.emailInfoRow}>
+              <Text style={styles.emailLabel}>REGISTERED ADMIN EMAIL</Text>
+              <Text style={styles.emailValue}>{profile?.email || 'Not configured'}</Text>
+            </View>
+
+            <TouchableOpacity
+              style={styles.emailChangeBtn}
+              onPress={() => setShowEmailModal(true)}
+              activeOpacity={0.8}
+            >
+              <Mail size={16} color="#fff" />
+              <Text style={styles.emailChangeBtnText}>Change &amp; Verify Email</Text>
+              <ChevronRight size={16} color="rgba(255,255,255,0.7)" />
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Section 1: AI Engine Benchmarks */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
@@ -449,6 +496,17 @@ const AdminSettingsScreen = () => {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* 6-Digit OTP Email Change Modal */}
+      <EmailChangeModal
+        visible={showEmailModal}
+        onClose={() => setShowEmailModal(false)}
+        currentEmail={profile?.email}
+        onSuccess={async (newEmail) => {
+          setProfile((prev) => ({ ...prev, email: newEmail }));
+          await refreshProfile();
+        }}
+      />
     </SafeAreaView>
   );
 };
@@ -474,6 +532,29 @@ const styles = StyleSheet.create({
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
   sectionTitle: { fontSize: 16, fontWeight: '900', color: COLORS.text },
   sectionDesc: { fontSize: 12.5, color: COLORS.textMuted, fontWeight: '600', lineHeight: 18, marginBottom: 16 },
+
+  // Email verification card
+  emailCardBody: { gap: 12 },
+  emailInfoRow: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  emailLabel: { fontSize: 10, fontWeight: '800', color: COLORS.textMuted, letterSpacing: 1, marginBottom: 4 },
+  emailValue: { fontSize: 14, fontWeight: '800', color: COLORS.text, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' },
+  emailChangeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: COLORS.primary,
+    height: 48,
+    borderRadius: 14,
+    ...SHADOWS.soft,
+  },
+  emailChangeBtnText: { fontSize: 13, fontWeight: '800', color: '#fff', letterSpacing: 0.3 },
   
   // Controls list
   controlsList: { gap: 12 },

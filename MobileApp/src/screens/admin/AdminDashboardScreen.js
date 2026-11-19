@@ -49,13 +49,15 @@ const AdminDashboardScreen = () => {
         .single();
       if (profileData) setProfile(profileData);
 
-      // Fetch all company tickets
+      // Fetch all company tickets (filter by verified company_id workspace UUID)
       let query = supabase
         .from('tickets')
         .select('*')
         .order('created_at', { ascending: false });
-      
-      if (profileData?.company) {
+
+      if (profileData?.company_id) {
+        query = query.eq('company_id', profileData.company_id);
+      } else if (profileData?.company) {
         query = query.eq('company', profileData.company);
       }
       
@@ -174,7 +176,7 @@ const AdminDashboardScreen = () => {
         <View style={styles.header}>
           <View>
             <Text style={styles.title}>Admin Portal</Text>
-            <Text style={styles.subtitle}>{profile?.company || 'Company Console'}</Text>
+            <Text style={styles.subtitle}>{profile?.company || 'RITESH PVT LTD'}</Text>
           </View>
           <View style={styles.activePill}>
             <View style={styles.pulseDot} />
