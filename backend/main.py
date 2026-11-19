@@ -351,6 +351,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+
+# Ticket-ingestion middleware must be inside request-ID middleware so
+# short-circuit responses receive the X-Request-ID header.
+app.add_middleware(TicketIngestionMiddleware)
 # Unified middleware: enforce request size limits + add X-Request-ID tracking
 @app.middleware("http")
 async def limit_request_size_and_add_request_id(request: Request, call_next):
@@ -381,11 +385,6 @@ async def limit_request_size_and_add_request_id(request: Request, call_next):
         return response
     finally:
         _request_id_ctx.set(None)
-# Protect ticket ingestion endpoints against duplicate submissions and abuse.
-app.add_middleware(TicketIngestionMiddleware)
-
-
-
 # Rate limiter — 10 AI requests per minute per IP (free tier protection)
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter

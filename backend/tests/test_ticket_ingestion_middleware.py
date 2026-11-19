@@ -1,6 +1,7 @@
 import asyncio
 
 import pytest
+from starlette.middleware.base import BaseHTTPMiddleware
 from httpx import ASGITransport, AsyncClient
 from starlette.applications import Starlette
 from starlette.responses import JSONResponse
@@ -322,3 +323,155 @@ async def test_same_key_on_different_paths_is_isolated():
     assert second.status_code == 201
     assert first.json() != second.json()
     assert len(calls) == 2
+
+
+def create_request_id_test_app(*, max_requests=30):
+    """Build an app with the production middleware registration order."""
+    calls = []
+
+    async def create_ticket(request):
+        payload = await request.json()
+        calls.append(payload)
+
+        return JSONResponse(
+            {"ticket_id": f"T-{len(calls)}"},
+            status_code=201,
+        )
+
+    application = Starlette(
+        routes=[
+            Route("/tickets", create_ticket, methods=["POST"]),
+            Route("/api/tickets", create_ticket, methods=["POST"]),
+        ]
+    )
+
+    # Register ticket middleware first.
+    application.add_middleware(
+        TicketIngestionMiddleware,
+        max_requests=max_requests,
+        window_seconds=60,
+        idempotency_ttl=300,
+        clock=FakeClock(),
+    )
+
+    # Register request-ID middleware afterwards so it wraps
+    # TicketIngestionMiddleware and sees its short-circuit responses.
+    async def add_request_id(request, call_next):
+        request_id = request.headers.get(
+            "X-Request-ID",
+            "generated-test-request-id",
+        )
+        request.state.request_id = request_id
+
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        return response
+
+    application.add_middleware(
+        BaseHTTPMiddleware,
+        dispatch=add_request_id,
+    )
+    return application, calls
+
+
+@pytest.mark.asyncio
+async def test_invalid_idempotency_key_response_includes_request_id():
+    application, _ = create_request_id_test_app()
+
+    async with make_client(application) as client:
+        response = await client.post(
+            "/tickets",
+            json={"summary": "Invalid key"},
+            headers={
+                "Idempotency-Key": "",
+                "X-Request-ID": "request-400",
+            },
+        )
+
+    assert response.status_code == 400
+    assert response.headers["X-Request-ID"] == "request-400"
+
+
+@pytest.mark.asyncio
+async def test_idempotency_conflict_response_includes_request_id():
+    application, calls = create_request_id_test_app()
+
+    async with make_client(application) as client:
+        first = await client.post(
+            "/tickets",
+            json={"summary": "Original ticket"},
+            headers={
+                "Idempotency-Key": "request-conflict",
+                "X-Request-ID": "request-original",
+            },
+        )
+
+        conflict = await client.post(
+            "/tickets",
+            json={"summary": "Different ticket"},
+            headers={
+                "Idempotency-Key": "request-conflict",
+                "X-Request-ID": "request-409",
+            },
+        )
+
+    assert first.status_code == 201
+    assert conflict.status_code == 409
+    assert conflict.headers["X-Request-ID"] == "request-409"
+    assert len(calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_rate_limit_response_includes_request_id():
+    application, _ = create_request_id_test_app(max_requests=1)
+
+    async with make_client(application) as client:
+        first = await client.post(
+            "/tickets",
+            json={"summary": "First request"},
+            headers={"X-Request-ID": "request-first"},
+        )
+
+        blocked = await client.post(
+            "/tickets",
+            json={"summary": "Blocked request"},
+            headers={"X-Request-ID": "request-429"},
+        )
+
+    assert first.status_code == 201
+    assert blocked.status_code == 429
+    assert blocked.headers["X-Request-ID"] == "request-429"
+
+
+@pytest.mark.asyncio
+async def test_cached_replay_uses_current_request_id():
+    application, calls = create_request_id_test_app()
+
+    async with make_client(application) as client:
+        first = await client.post(
+            "/tickets",
+            json={"summary": "Retry safely"},
+            headers={
+                "Idempotency-Key": "request-replay",
+                "X-Request-ID": "request-original",
+            },
+        )
+
+        replay = await client.post(
+            "/tickets",
+            json={"summary": "Retry safely"},
+            headers={
+                "Idempotency-Key": "request-replay",
+                "X-Request-ID": "request-retry",
+            },
+        )
+
+    assert first.status_code == 201
+    assert replay.status_code == 200
+    assert first.json() == replay.json()
+
+    assert first.headers["X-Request-ID"] == "request-original"
+    assert replay.headers["X-Request-ID"] == "request-retry"
+    assert replay.headers["X-Request-ID"] != first.headers["X-Request-ID"]
+
+    assert len(calls) == 1
