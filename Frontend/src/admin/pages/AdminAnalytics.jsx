@@ -6,13 +6,19 @@ import {
 import {
     BarChart3, PieChart as PieChartIcon, LineChart as LineChartIcon,
     TrendingUp, Users, ShieldCheck, Zap, AlertCircle, Clock, Activity,
-    Layers, Inbox, User, Loader2, Bot, Star, Target
+    Layers, Inbox, User, Loader2, Bot, Star, Target,
+    FileJson, FileText
 } from 'lucide-react';
 import { supabase } from "../../lib/supabaseClient";
 import StatCard from '../components/StatCard';
 import { Card, CardContent } from "../../components/ui/card";
 import useAuthStore from "../../store/authStore";
 import { formatTimelineDate } from "../../utils/dateUtils";
+
+import {
+    exportTicketsToJSON,
+    exportTicketsToMarkdown
+} from '../services/exportService';
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#a855f7', '#ec4899'];
 
@@ -171,6 +177,22 @@ const AdminAnalytics = () => {
         return { accuracyRate, resolutionSplit, misclassifiedCategories, avgCsatScore };
     }, [tickets]);
 
+    const handleExportJSON = () => {
+        try {
+            exportTicketsToJSON(tickets);
+    } catch (error) {
+        alert(error.message);
+    }
+};
+
+const handleExportMarkdown = () => {
+    try {
+        exportTicketsToMarkdown(tickets);
+    } catch (error) {
+        alert(error.message);
+    }
+};
+
     // Removed tab state - moving to single dashboard layout
     if (loading) return (
         <div className="flex flex-col items-center justify-center min-h-[400px]">
@@ -190,6 +212,26 @@ const AdminAnalytics = () => {
                     <p style={{ fontSize: '11px', letterSpacing: '0.14em', color: '#9ca3af', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px', textTransform: 'uppercase' }}>
                         <Activity size={14} color="#16a34a" /> AI & System Insights
                     </p>
+                                </div>
+
+                <div className="flex flex-wrap gap-3">
+                    <button
+                        onClick={handleExportJSON}
+                        disabled={tickets.length === 0}
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                        <FileJson size={16} />
+                        Export JSON
+                    </button>
+
+                    <button
+                        onClick={handleExportMarkdown}
+                        disabled={tickets.length === 0}
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                        <FileText size={16} />
+                        Export Markdown
+                    </button>
                 </div>
             </div>
 
