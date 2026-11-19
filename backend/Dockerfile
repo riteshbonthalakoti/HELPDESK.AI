@@ -64,7 +64,7 @@ EXPOSE 7860
 HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
     CMD wget --spider -q http://localhost:7860/health || exit 1
 
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "7860", "--workers", "2"]
+CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "7860", "--workers", "1"]
 
 # ---------------------------------------------------------------------------
 # Stage 3: dev - includes test deps, hot reload, and debug tools

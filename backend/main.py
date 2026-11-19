@@ -87,7 +87,7 @@ from backend.services.classifier_v3 import classifier_v3  # V3 Power Model
 from backend.services.ner_service import NERService
 from backend.services.duplicate_service import DuplicateService
 from backend.services.rag_service import RagService
-
+from backend.middleware.ticket_ingestion import TicketIngestionMiddleware
 
 # ---------------------------------------------------------------------------
 # Request / Response models
@@ -351,6 +351,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+
+# Ticket-ingestion middleware must be inside request-ID middleware so
+# short-circuit responses receive the X-Request-ID header.
+app.add_middleware(TicketIngestionMiddleware)
 # Unified middleware: enforce request size limits + add X-Request-ID tracking
 @app.middleware("http")
 async def limit_request_size_and_add_request_id(request: Request, call_next):
@@ -381,9 +385,6 @@ async def limit_request_size_and_add_request_id(request: Request, call_next):
         return response
     finally:
         _request_id_ctx.set(None)
-
-
-
 # Rate limiter — 10 AI requests per minute per IP (free tier protection)
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
@@ -881,6 +882,7 @@ async def get_ticket_by_id(ticket_id: str, user: dict = Depends(get_current_user
     return res.data
 
 
+@app.post("/api/tickets", response_model=TicketRecord)
 @app.post("/tickets", response_model=TicketRecord)
 async def create_ticket(ticket: TicketRecord):
     """Save a new ticket into the system."""
