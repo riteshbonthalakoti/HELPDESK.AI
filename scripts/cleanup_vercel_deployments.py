@@ -17,7 +17,7 @@ def api_request(url, token, method="GET", data=None):
     headers = {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
-        "User-Agent": "Antigravity-Vercel-Cleanup/1.0"
+        "User-Agent": "HELPDESK-Vercel-Maintenance/1.0"
     }
     body = json.dumps(data).encode("utf-8") if data else None
     req = urllib.request.Request(url, data=body, headers=headers, method=method)

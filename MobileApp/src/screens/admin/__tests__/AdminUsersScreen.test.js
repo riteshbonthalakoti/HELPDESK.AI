@@ -19,7 +19,7 @@ import { render, waitFor, fireEvent, act } from '@testing-library/react-native';
 
 // ── Mocks ───────────────────────────────────────────────────────────────────
 
-jest.mock('../../lib/supabase', () => ({
+jest.mock('../../../lib/supabase', () => ({
   supabase: {
     auth: {
       getUser: jest.fn(),

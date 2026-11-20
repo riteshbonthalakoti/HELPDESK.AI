@@ -18,7 +18,7 @@ import { render, waitFor, act } from '@testing-library/react-native';
 
 // ── Mocks ───────────────────────────────────────────────────────────────────
 
-jest.mock('../../lib/supabase', () => ({
+jest.mock('../../../lib/supabase', () => ({
   supabase: {
     auth: {
       getUser: jest.fn(),
@@ -47,7 +47,7 @@ jest.mock('expo-haptics', () => ({
   NotificationFeedbackType: { Success: 'Success' },
 }));
 
-jest.mock('../../components/NotificationProvider', () => ({
+jest.mock('../../../components/NotificationProvider', () => ({
   useNotification: () => ({ show: jest.fn() }),
 }));
 
