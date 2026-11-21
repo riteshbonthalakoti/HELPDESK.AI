@@ -367,6 +367,26 @@ async def analyze_only(request_body: TicketRequest, user: dict = Depends(get_cur
         classification["auto_resolve"] = False
     if classification["auto_resolve"]:
         reasoning += " Flagged for AI auto-resolution via Knowledge Base." if rag_match else " Flagged for auto-resolution."
+
+    # --- Policy Guardrail Enforcement (#4192) ---
+    ticket_status = "auto_resolved" if classification["auto_resolve"] else "open"
+    guardrail_report = None
+    try:
+        from backend.services.rule_engine import policy_guardrail_engine
+        # Evaluate response text / summary against deterministic enterprise policies
+        eval_text = f"{text} {summary if 'summary' in locals() else ''}"
+        guardrail_report = policy_guardrail_engine.validate_response(
+            eval_text,
+            confidence=classification["confidence"]
+        )
+        if not guardrail_report["passed"]:
+            # Block auto-resolution and escalate to human review
+            classification["auto_resolve"] = False
+            ticket_status = "pending_human"
+            decision_factors.append(f"Guardrail Escalation: {guardrail_report['escalation_reason']}")
+            reasoning += f" [Policy Escalation: Routed to human review due to policy constraints.]"
+    except Exception as e:
+        logger.warning(f"[Guardrail] Policy guardrail check error: {e}")
     
     timeline["routed"] = get_now_ist()
     

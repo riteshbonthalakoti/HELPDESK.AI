@@ -133,3 +133,234 @@ class RuleBasedEngine:
 
 # Singleton
 rule_engine = RuleBasedEngine()
+
+
+# ─── LLM Policy Guardrail Engine (#4192) ───────────────────────────
+
+class PolicyViolationError(Exception):
+    """Raised when an LLM response or user prompt violates organizational policy."""
+    def __init__(self, rule_name: str, message: str, details: dict = None):
+        super().__init__(message)
+        self.rule_name = rule_name
+        self.message = message
+        self.details = details or {}
+
+
+class PolicyGuardrailEngine:
+    """
+    Deterministic LLM Behavioral Guardrails and Policy Enforcement Engine.
+    Ensures LLM responses and drafts satisfy enterprise constraints:
+    - Forbidden commitment words (unauthorized refunds, SLAs, legal promises)
+    - Financial limits / Max credit caps
+    - URL domain whitelisting (preventing internal infra leaks)
+    - Prompt injection detection (direct & indirect jailbreak attempts)
+    - PII scrubbing enforcement
+    - Confidence threshold evaluation (<0.85 triggers human escalation)
+    """
+
+    DEFAULT_ALLOWED_DOMAINS = [
+        "helpdesk.ai",
+        "docs.helpdesk.ai",
+        "support.helpdesk.ai",
+        "status.helpdesk.ai",
+        "github.com",
+    ]
+
+    # Forbidden commitments that AI cannot guarantee without human manager approval
+    FORBIDDEN_COMMITMENT_PATTERNS = [
+        (r"\b(promise|guarantee|assure)\s+(you\s+)?(a\s+)?refund\b", "unauthorized_refund_commitment"),
+        (r"\b(will|shall)\s+(fully\s+)?refund\b", "unauthorized_refund_commitment"),
+        (r"\b(100%|full)\s+money[- ]back\s+guarantee\b", "unauthorized_guarantee"),
+        (r"\bguarantee\s+(\d+\s*(hour|minute|day)|zero[- ]downtime|100%\s*uptime)\b", "unauthorized_sla_commitment"),
+        (r"\bwaive\s+(all\s+)?(fees?|charges?|penalt(y|ies))\b", "unauthorized_fee_waiver"),
+        (r"\bwe\s+will\s+compensate\s+you\b", "unauthorized_compensation_promise"),
+        (r"\bour\s+liability\s+is\s+unlimited\b", "unauthorized_legal_admission"),
+    ]
+
+    # Prompt injection patterns
+    PROMPT_INJECTION_PATTERNS = [
+        (r"ignore\s+(all\s+)?previous\s+(instructions|prompts|directions)", "jailbreak_ignore_instructions"),
+        (r"system\s*:\s*you\s+are\s+now", "system_prompt_override"),
+        (r"reveal\s+(your\s+)?(system\s+prompt|internal\s+instructions|secret\s+key)", "prompt_leakage_attempt"),
+        (r"bypass\s+(all\s+)?(filters|guardrails|safety\s+checks)", "safety_bypass_attempt"),
+        (r"you\s+are\s+in\s+developer\s+mode", "dan_developer_mode_jailbreak"),
+    ]
+
+    def __init__(
+        self,
+        allowed_domains: list[str] | None = None,
+        max_credit_limit: float = 50.0,
+        confidence_threshold: float = 0.85,
+    ):
+        self.allowed_domains = allowed_domains or list(self.DEFAULT_ALLOWED_DOMAINS)
+        self.max_credit_limit = max_credit_limit
+        self.confidence_threshold = confidence_threshold
+
+    def check_prompt_injection(self, text: str) -> dict:
+        """Scan input text for adversarial prompt injection / jailbreak markers."""
+        if not text:
+            return {"is_injection": False, "violations": []}
+
+        violations = []
+        for pattern, rule_name in self.PROMPT_INJECTION_PATTERNS:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                violations.append({
+                    "rule": rule_name,
+                    "matched_text": match.group(0),
+                })
+
+        return {
+            "is_injection": len(violations) > 0,
+            "violations": violations,
+        }
+
+    def check_forbidden_commitments(self, text: str) -> list[dict]:
+        """Detect unauthorized promises, refunds, SLA guarantees, or fee waivers."""
+        violations = []
+        for pattern, rule_name in self.FORBIDDEN_COMMITMENT_PATTERNS:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                violations.append({
+                    "rule": rule_name,
+                    "matched_text": match.group(0),
+                })
+        return violations
+
+    def check_credit_limit(self, text: str) -> list[dict]:
+        """Verify that any proposed dollar credit / reimbursement is <= max_credit_limit."""
+        violations = []
+        # Match dollar expressions like "$100", "$ 250.50", "100 dollars", "credit of $75"
+        dollar_matches = re.finditer(r"\$\s*(\d+(?:\.\d{1,2})?)|(\d+(?:\.\d{1,2})?)\s*(?:dollars|usd)", text, re.IGNORECASE)
+        for m in dollar_matches:
+            val_str = m.group(1) or m.group(2)
+            try:
+                val = float(val_str)
+                if val > self.max_credit_limit:
+                    violations.append({
+                        "rule": "credit_limit_exceeded",
+                        "matched_amount": val,
+                        "max_allowed": self.max_credit_limit,
+                        "matched_text": m.group(0),
+                    })
+            except ValueError:
+                pass
+        return violations
+
+    def check_url_whitelisting(self, text: str) -> list[dict]:
+        """Ensure all URLs in text point to approved domains, blocking internal infra leakage."""
+        violations = []
+        url_matches = re.finditer(r"https?://([a-zA-Z0-9\.\-]+)(?::\d+)?(?:/[^\s]*)?", text, re.IGNORECASE)
+        for m in url_matches:
+            domain = m.group(1).lower()
+            # Check if domain matches or is a subdomain of any allowed domain
+            is_allowed = any(
+                domain == allowed or domain.endswith("." + allowed)
+                for allowed in self.allowed_domains
+            )
+            if not is_allowed:
+                violations.append({
+                    "rule": "unauthorized_url_domain",
+                    "domain": domain,
+                    "full_url": m.group(0),
+                })
+        return violations
+
+    def validate_response(
+        self,
+        text: str,
+        confidence: float = 1.0,
+        auto_redact_pii: bool = True,
+    ) -> dict:
+        """
+        Validate an automated LLM output against all deterministic policy rules.
+
+        Returns structured report:
+        {
+            "passed": bool,
+            "sanitized_text": str,
+            "violations": list[dict],
+            "action": "allow" | "pending_human" | "block",
+            "escalation_reason": str | None
+        }
+        """
+        from backend.services.pii_redactor import redact_pii
+
+        violations = []
+
+        # 1. Prompt injection check
+        inj_res = self.check_prompt_injection(text)
+        if inj_res["is_injection"]:
+            violations.extend(inj_res["violations"])
+
+        # 2. Forbidden commitments check
+        violations.extend(self.check_forbidden_commitments(text))
+
+        # 3. Credit limit check
+        violations.extend(self.check_credit_limit(text))
+
+        # 4. URL allowlist check
+        violations.extend(self.check_url_whitelisting(text))
+
+        # 5. PII sanitization pass
+        sanitized_text = redact_pii(text) if auto_redact_pii else text
+
+        # 6. Confidence threshold evaluation
+        low_confidence = confidence < self.confidence_threshold
+        if low_confidence:
+            violations.append({
+                "rule": "low_confidence_threshold",
+                "confidence": confidence,
+                "threshold": self.confidence_threshold,
+            })
+
+        passed = len(violations) == 0
+        action = "allow"
+        escalation_reason = None
+
+        if not passed:
+            action = "pending_human"
+            escalation_reason = f"Policy violations detected: {', '.join(v['rule'] for v in violations)}"
+
+        return {
+            "passed": passed,
+            "sanitized_text": sanitized_text,
+            "violations": violations,
+            "action": action,
+            "escalation_reason": escalation_reason,
+        }
+
+    def record_audit_log(
+        self,
+        ticket_id: str,
+        company_id: str,
+        validation_result: dict,
+        supabase_client=None,
+    ) -> dict:
+        """
+        Log policy violation audit record in audit_logs.
+        """
+        audit_entry = {
+            "ticket_id": ticket_id,
+            "company_id": company_id,
+            "action": "policy_guardrail_evaluation",
+            "status": "pending_human" if not validation_result["passed"] else "passed",
+            "performed_by": "system:policy_guardrail_engine",
+            "old_value": {"status": "analyzing"},
+            "new_value": {
+                "action": validation_result["action"],
+                "violations": validation_result["violations"],
+                "passed": validation_result["passed"],
+            },
+        }
+
+        if supabase_client:
+            try:
+                supabase_client.table("audit_logs").insert(audit_entry).execute()
+            except Exception as e:
+                logger.error(f"[PolicyGuardrailEngine] Failed to write audit_log: {e}")
+
+        return audit_entry
+
+
+policy_guardrail_engine = PolicyGuardrailEngine()
