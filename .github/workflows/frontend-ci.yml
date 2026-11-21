@@ -66,6 +66,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Verify ticket row identity and sorting
+        run: npm run test:my-tickets
+
       - name: Run Vitest
         run: npx vitest run --reporter=verbose --passWithNoTests || true
 
