@@ -2,13 +2,14 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     Ticket, Inbox, Search, Filter,
-    ChevronDown, ChevronRight, ShieldCheck, Clock, Loader2, AlertCircle
+    ChevronDown, ChevronRight, ShieldCheck, Clock, Loader2, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown
 } from 'lucide-react';
 import useAuthStore from "../../store/authStore";
 import { supabase } from "../../lib/supabaseClient";
 import { Card } from "../../components/ui/card";
 import { Badge } from "../../components/ui/badge";
 import { Select } from "../../components/ui/select";
+import { sortUserTickets } from "../../utils/sortUserTickets";
 import { formatTicketId } from "../../utils/format";
 import TicketStatusBadge from "../components/TicketStatusBadge";
 import SLACountdownTimer from "../../components/shared/SLACountdownTimer";
@@ -22,6 +23,105 @@ import {
     TooltipTrigger,
 } from "../../components/ui/tooltip";
 
+const getPriorityColor = (priority) => {
+    const p = (priority || '').toLowerCase();
+    if (p === 'high' || p === 'critical' || p === 'p1' || p === 'p2') return 'text-red-600 font-bold';
+    if (p === 'medium' || p === 'p3') return 'text-amber-600 font-bold';
+    if (p === 'low' || p === 'p4') return 'text-blue-600 font-bold';
+    return 'text-gray-600';
+};
+
+const UserTicketRow = React.memo(function UserTicketRow({ ticket, onOpenTicket }) {
+    const sla = useSLACountdown(ticket);
+    const urgencyAlertClass = getVisualAlertClasses(sla?.urgencyLevel, { isRow: true });
+
+    return (
+        <tr
+            key={ticket.id}
+            onClick={() => onOpenTicket(ticket.id)}
+            className={`group hover:bg-emerald-50/30 transition-colors cursor-pointer ${urgencyAlertClass}`}
+        >
+            <td className="px-6 py-4">
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <span className="font-mono font-bold text-gray-900 text-sm">#{formatTicketId(ticket.id)}</span>
+                    </TooltipTrigger>
+                    <TooltipContent
+                        side="top"
+                        className="bg-gray-900 text-white border-none p-4 w-[300px] shadow-xl rounded-xl"
+                        sideOffset={10}
+                    >
+                        <div className="space-y-3">
+                            <div>
+                                 <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-1">Issue Overview</p>
+                                 <p className="text-sm font-medium leading-relaxed overflow-hidden text-ellipsis whitespace-nowrap">{ticket.summary || ticket.description || "No description provided"}</p>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-1">Category</p>
+                                    <p className="text-sm font-medium">{ticket.category || 'General'}</p>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-1">Priority</p>
+                                    <p className="text-sm font-medium capitalize">{ticket.priority || 'medium'}</p>
+                                </div>
+                            </div>
+                            <div>
+                                <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-1">Assigned Unit</p>
+                                <p className="text-sm font-medium flex items-center gap-1.5"><ShieldCheck size={14} className="text-emerald-400" />{ticket.assigned_team || 'General Support'}</p>
+                            </div>
+                        </div>
+                    </TooltipContent>
+                </Tooltip>
+            </td>
+            <td className="px-6 py-4 w-1/3 max-w-[300px]">
+                 <p className="text-sm font-semibold text-gray-900 truncate group-hover:text-emerald-700 transition-colors">
+                     {ticket.summary || ticket.subject || ticket.description || "No subject"}
+                 </p>
+            </td>
+            <td className="px-6 py-4">
+                <span className="text-sm font-medium text-gray-600 bg-gray-100 px-2.5 py-1 rounded-md">
+                    {ticket.category || 'General'}
+                </span>
+            </td>
+            <td className="px-6 py-4">
+                <TicketStatusBadge status={ticket.status} />
+            </td>
+            <td className="px-6 py-4">
+                <span className={`text-sm capitalize ${getPriorityColor(ticket.priority)}`}>
+                    {ticket.priority || 'medium'}
+                </span>
+            </td>
+            <td className="px-6 py-4">
+                <SLACountdownTimer ticket={ticket} compact />
+            </td>
+            <td className="px-6 py-4">
+                <div className="flex flex-col">
+                    <span className="text-sm font-semibold text-gray-700">
+                        {formatTimelineDate(ticket.created_at)}
+                    </span>
+                    <span className="text-[10px] text-emerald-600 font-black uppercase tracking-widest mt-0.5">
+                        {getTimeZoneAbbr()} Node
+                    </span>
+                </div>
+            </td>
+        </tr>
+    );
+});
+
+function TicketSortHeader({ field, label, sort, onSort }) {
+    const active = sort.field === field;
+    const Icon = active ? (sort.direction === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown;
+    const nextDirection = active && sort.direction === 'asc' ? 'descending' : 'ascending';
+    return (
+        <th scope="col" aria-sort={active ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'} className="px-6 py-4 text-xs font-black text-gray-500 uppercase tracking-widest">
+            <button type="button" onClick={() => onSort(field)} aria-label={`Sort by ${label} ${nextDirection}`} className="inline-flex items-center gap-1.5 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600">
+                {label}<Icon size={14} aria-hidden="true" />
+            </button>
+        </th>
+    );
+}
+
 function MyTickets() {
     const navigate = useNavigate();
     const { user } = useAuthStore();
@@ -32,6 +132,11 @@ function MyTickets() {
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('All');
     const [priorityFilter, setPriorityFilter] = useState('All');
+    const [sort, setSort] = useState({ field: 'created_at', direction: 'desc' });
+    const openTicket = useCallback(id => navigate(`/ticket/${id}`), [navigate]);
+    const toggleSort = useCallback(field => setSort(previous => ({
+        field, direction: previous.field === field && previous.direction === 'asc' ? 'desc' : 'asc',
+    })), []);
 
     // Fetch tickets from Supabase
     const fetchTickets = useCallback(async () => {
@@ -76,7 +181,6 @@ function MyTickets() {
                     filter: `user_id=eq.${user.id}`
                 },
                 (payload) => {
-                    console.log("User tickets real-time event:", payload.eventType, payload.new);
                     if (payload.eventType === 'INSERT') {
                         setTickets(prev => [payload.new, ...prev]);
                     } else if (payload.eventType === 'UPDATE') {
@@ -95,7 +199,7 @@ function MyTickets() {
 
     // Filtering logic
     const filteredTickets = useMemo(() => {
-        return tickets
+        return sortUserTickets(tickets
             .filter(ticket => {
                 const searchLower = searchQuery.toLowerCase();
                 const matchesSearch =
@@ -111,95 +215,10 @@ function MyTickets() {
                 const matchesPriority = priorityFilter === 'All' ? true : ticketPriority.toLowerCase() === priorityFilter.toLowerCase();
 
                 return matchesSearch && matchesStatus && matchesPriority;
-            });
-    }, [tickets, searchQuery, statusFilter, priorityFilter]);
+            }), sort);
+    }, [tickets, searchQuery, statusFilter, priorityFilter, sort]);
 
 
-    const getPriorityColor = (priority) => {
-        const p = (priority || '').toLowerCase();
-        if (p === 'high' || p === 'critical' || p === 'p1' || p === 'p2') return 'text-red-600 font-bold';
-        if (p === 'medium' || p === 'p3') return 'text-amber-600 font-bold';
-        if (p === 'low' || p === 'p4') return 'text-blue-600 font-bold';
-        return 'text-gray-600';
-    };
-
-    const UserTicketRow = ({ ticket }) => {
-        const sla = useSLACountdown(ticket);
-        const urgencyAlertClass = getVisualAlertClasses(sla?.urgencyLevel, { isRow: true });
-
-        return (
-            <tr
-                key={ticket.id}
-                onClick={() => navigate(`/ticket/${ticket.id}`)}
-                className={`group hover:bg-emerald-50/30 transition-colors cursor-pointer ${urgencyAlertClass}`}
-            >
-                <td className="px-6 py-4">
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <span className="font-mono font-bold text-gray-900 text-sm">#{formatTicketId(ticket.id)}</span>
-                        </TooltipTrigger>
-                        <TooltipContent
-                            side="top"
-                            className="bg-gray-900 text-white border-none p-4 w-[300px] shadow-xl rounded-xl"
-                            sideOffset={10}
-                        >
-                            <div className="space-y-3">
-                                <div>
-                                     <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-1">Issue Overview</p>
-                                     <p className="text-sm font-medium leading-relaxed overflow-hidden text-ellipsis whitespace-nowrap">{ticket.summary || ticket.description || "No description provided"}</p>
-                                </div>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-1">Category</p>
-                                        <p className="text-sm font-medium">{ticket.category || 'General'}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-1">Priority</p>
-                                        <p className="text-sm font-medium capitalize">{ticket.priority || 'medium'}</p>
-                                    </div>
-                                </div>
-                                <div>
-                                    <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-1">Assigned Unit</p>
-                                    <p className="text-sm font-medium flex items-center gap-1.5"><ShieldCheck size={14} className="text-emerald-400" />{ticket.assigned_team || 'General Support'}</p>
-                                </div>
-                            </div>
-                        </TooltipContent>
-                    </Tooltip>
-                </td>
-                <td className="px-6 py-4 w-1/3 max-w-[300px]">
-                     <p className="text-sm font-semibold text-gray-900 truncate group-hover:text-emerald-700 transition-colors">
-                         {ticket.summary || ticket.subject || ticket.description || "No subject"}
-                     </p>
-                </td>
-                <td className="px-6 py-4">
-                    <span className="text-sm font-medium text-gray-600 bg-gray-100 px-2.5 py-1 rounded-md">
-                        {ticket.category || 'General'}
-                    </span>
-                </td>
-                <td className="px-6 py-4">
-                    <TicketStatusBadge status={ticket.status} />
-                </td>
-                <td className="px-6 py-4">
-                    <span className={`text-sm capitalize ${getPriorityColor(ticket.priority)}`}>
-                        {ticket.priority || 'medium'}
-                    </span>
-                </td>
-                <td className="px-6 py-4">
-                    <SLACountdownTimer ticket={ticket} compact />
-                </td>
-                <td className="px-6 py-4">
-                    <div className="flex flex-col">
-                        <span className="text-sm font-semibold text-gray-700">
-                            {formatTimelineDate(ticket.created_at)}
-                        </span>
-                        <span className="text-[10px] text-emerald-600 font-black uppercase tracking-widest mt-0.5">
-                            {getTimeZoneAbbr()} Node
-                        </span>
-                    </div>
-                </td>
-            </tr>
-        );
-    };
 
     return (
         <main className="flex-1 max-w-[1200px] w-full mx-auto px-4 sm:px-6 py-5 sm:py-8 md:py-10 flex flex-col gap-5 sm:gap-7">
@@ -218,6 +237,23 @@ function MyTickets() {
                     Create New Ticket
                 </button>
             </div>
+
+            <label className="md:hidden text-sm font-semibold text-gray-600">
+                Sort tickets
+                <select value={`${sort.field}:${sort.direction}`} onChange={event => {
+                    const [field, direction] = event.target.value.split(':');
+                    setSort({ field, direction });
+                }} className="ml-2 rounded-lg border border-gray-200 bg-white p-2">
+                    <option value="created_at:desc">Newest first</option>
+                    <option value="created_at:asc">Oldest first</option>
+                    <option value="priority:asc">Priority: low to critical</option>
+                    <option value="priority:desc">Priority: critical to low</option>
+                    <option value="status:asc">Status: A to Z</option>
+                    <option value="status:desc">Status: Z to A</option>
+                    <option value="id:asc">ID: ascending</option>
+                    <option value="id:desc">ID: descending</option>
+                </select>
+            </label>
 
             {/* Toolbar section */}
             <div className="flex flex-col md:flex-row gap-3 md:gap-4 bg-white p-3.5 sm:p-4 rounded-2xl shadow-xs border border-gray-100">
@@ -394,19 +430,19 @@ function MyTickets() {
                         <table className="w-full text-left whitespace-nowrap">
                             <thead>
                                 <tr className="bg-gray-50/50 border-b border-gray-100">
-                                    <th className="px-6 py-4 text-xs font-black text-gray-500 uppercase tracking-widest">ID</th>
+                                    <TicketSortHeader field="id" label="ID" sort={sort} onSort={toggleSort} />
                                     <th className="px-6 py-4 text-xs font-black text-gray-500 uppercase tracking-widest">Subject</th>
                                     <th className="px-6 py-4 text-xs font-black text-gray-500 uppercase tracking-widest">Category</th>
-                                    <th className="px-6 py-4 text-xs font-black text-gray-500 uppercase tracking-widest">Status</th>
-                                    <th className="px-6 py-4 text-xs font-black text-gray-500 uppercase tracking-widest">Priority</th>
+                                    <TicketSortHeader field="status" label="Status" sort={sort} onSort={toggleSort} />
+                                    <TicketSortHeader field="priority" label="Priority" sort={sort} onSort={toggleSort} />
                                     <th className="px-6 py-4 text-xs font-black text-gray-500 uppercase tracking-widest">SLA Countdown</th>
-                                    <th className="px-6 py-4 text-xs font-black text-gray-500 uppercase tracking-widest">Submitted</th>
+                                    <TicketSortHeader field="created_at" label="Submitted" sort={sort} onSort={toggleSort} />
                                 </tr>
                             </thead>
                             <TooltipProvider delayDuration={300}>
                                 <tbody className="divide-y divide-gray-100">
                                     {filteredTickets.map(ticket => (
-                                        <UserTicketRow key={ticket.id} ticket={ticket} />
+                                        <UserTicketRow key={ticket.id} ticket={ticket} onOpenTicket={openTicket} />
                                     ))}
                                 </tbody>
                             </TooltipProvider>
