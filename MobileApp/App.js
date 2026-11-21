@@ -21,6 +21,7 @@ import { COLORS } from './src/styles/theme';
 import OnboardingScreen from './src/screens/auth/OnboardingScreen';
 import LoginScreen from './src/screens/auth/LoginScreen';
 import SignupScreen from './src/screens/auth/SignupScreen';
+import PendingApprovalScreen from './src/screens/auth/PendingApprovalScreen';
 
 import TicketsListScreen from './src/screens/user/TicketsListScreen';
 import CreateTicketScreen from './src/screens/user/CreateTicketScreen';
@@ -134,49 +135,57 @@ function AdminTabNavigator() {
 export default function App() {
   const [session, setSession] = useState(null);
   const [role, setRole] = useState('user');
+  const [status, setStatus] = useState('active');
   const [booting, setBooting] = useState(true);
+
+  const resolveRole = async (activeSession, isMounted = true) => {
+    if (!activeSession?.user?.id) {
+      if (isMounted) {
+        setSession(null);
+        setRole('user');
+        setStatus('active');
+        setBooting(false);
+      }
+      return;
+    }
+    try {
+      const { data } = await supabase
+        .from('profiles')
+        .select('role, status')
+        .eq('id', activeSession.user.id)
+        .single();
+      if (isMounted) {
+        setSession(activeSession);
+        setRole(data?.role || 'user');
+        setStatus(data?.status || 'active');
+      }
+    } catch {
+      if (isMounted) {
+        setSession(activeSession);
+        setRole('user');
+        setStatus('active');
+      }
+    } finally {
+      if (isMounted) setBooting(false);
+    }
+  };
 
   useEffect(() => {
     let mounted = true;
 
-    const resolveRole = async (activeSession) => {
-      if (!activeSession?.user?.id) {
-        if (mounted) {
-          setSession(null);
-          setRole('user');
-          setBooting(false);
-        }
-        return;
-      }
-      try {
-        const { data } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', activeSession.user.id)
-          .single();
-        if (mounted) {
-          setSession(activeSession);
-          setRole(data?.role || 'user');
-        }
-      } catch {
-        if (mounted) {
-          setSession(activeSession);
-          setRole('user');
-        }
-      } finally {
-        if (mounted) setBooting(false);
-      }
-    };
-
-    supabase.auth.getSession().then(({ data }) => resolveRole(data?.session || null));
+    supabase.auth.getSession().then(({ data }) => resolveRole(data?.session || null, mounted));
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      resolveRole(nextSession);
+      resolveRole(nextSession, mounted);
     });
 
     return () => {
       mounted = false;
-      listener?.subscription?.unsubscribe();
+      if (typeof listener?.subscription?.unsubscribe === 'function') {
+        listener.subscription.unsubscribe();
+      } else if (typeof listener?.unsubscribe === 'function') {
+        listener.unsubscribe();
+      }
     };
   }, []);
 
@@ -191,6 +200,8 @@ export default function App() {
     );
   }
 
+  const isPending =
+    status === 'pending_approval' || role === 'pending_approval' || status === 'pending';
   const isAdmin = role === 'admin' || role === 'master_admin' || role === 'super_admin';
 
   return (
@@ -205,6 +216,8 @@ export default function App() {
                 <Stack.Screen name="Signup" component={SignupScreen} />
                 <Stack.Screen name="Onboarding" component={OnboardingScreen} />
               </>
+            ) : isPending ? (
+              <Stack.Screen name="PendingApproval" component={PendingApprovalScreen} />
             ) : isAdmin ? (
               <>
                 <Stack.Screen name="AdminMain" component={AdminTabNavigator} />

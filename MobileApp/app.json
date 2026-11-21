@@ -4,10 +4,12 @@
     "slug": "helpdesk-ai",
     "version": "1.0.0",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "scheme": "helpdeskai",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
+      "image": "./assets/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#0b1f17"
     },
@@ -19,6 +21,7 @@
       "package": "com.ritesh.helpdeskai",
       "versionCode": 1,
       "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0b1f17"
       },
       "edgeToEdgeEnabled": true,

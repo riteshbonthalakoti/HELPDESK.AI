@@ -2,3 +2,10 @@
 .env
 .env.*
 !.env.example
+
+# Local mobile development artifacts
+.expo/
+android/
+ios/
+dist/
+web-build/
