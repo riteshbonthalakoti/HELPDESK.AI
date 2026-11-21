@@ -156,7 +156,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 10,
     paddingBottom: 20,
-    backgroundColor: COLORS.white,
+    backgroundColor: '#ffffff',
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border
   },
@@ -174,19 +174,19 @@ const styles = StyleSheet.create({
   },
   aiBannerText: { flex: 1, color: COLORS.primaryDark, fontSize: 13, fontWeight: '600', lineHeight: 18 },
   inputCard: {
-    backgroundColor: COLORS.white,
+    backgroundColor: '#ffffff',
     borderRadius: 24,
-    padding: 20,
+    padding: 24,
     marginBottom: 32,
     ...SHADOWS.soft,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.03)'
+    borderColor: '#e5e7eb'
   },
   inputHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   inputLabel: { fontSize: 14, fontWeight: '700', color: COLORS.text },
   charCount: { fontSize: 12, color: COLORS.textMuted },
   input: { 
-    backgroundColor: COLORS.background, 
+    backgroundColor: '#ffffff', 
     borderRadius: 16, 
     padding: 16, 
     minHeight: 150, 

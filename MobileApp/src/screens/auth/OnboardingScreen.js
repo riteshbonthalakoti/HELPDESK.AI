@@ -13,7 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
-import { COLORS, SHADOWS } from '../../styles/theme';
+import { COLORS, SPACING, SHADOWS } from '../../styles/theme';
 import { ArrowRight, Sparkles, BrainCircuit, Globe, Zap } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -94,7 +94,7 @@ const OnboardingScreen = () => {
       <StatusBar barStyle="light-content" />
       
       <LinearGradient
-        colors={['#0f172a', '#020617']}
+        colors={['#0f1f12', '#0a2530']}
         style={StyleSheet.absoluteFill}
       />
 
@@ -224,6 +224,7 @@ const styles = StyleSheet.create({
   dot: {
     height: 10,
     borderRadius: 5,
+    backgroundColor: COLORS.primary,
   },
   primaryBtn: {
     height: 64,
@@ -233,7 +234,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     gap: 12,
-    ...SHADOWS.large,
+    ...SHADOWS.medium,
   },
   btnText: { color: '#fff', fontSize: 18, fontWeight: '800' },
 });

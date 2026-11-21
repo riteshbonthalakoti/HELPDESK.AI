@@ -453,7 +453,7 @@ const AdminTicketDetailScreen = () => {
 
       <KeyboardAvoidingView 
         style={{ flex: 1 }} 
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior="padding"
       >
         <FlatList
           ref={flatListRef}
@@ -544,7 +544,7 @@ const AdminTicketDetailScreen = () => {
                     <Text style={styles.ticketCreatorText}>Sender: {creatorName}</Text>
                   </View>
                   <View style={[styles.priorityBadge, { backgroundColor: ticket?.priority?.toLowerCase() === 'critical' ? '#fee2e2' : ticket?.priority?.toLowerCase() === 'high' ? '#fef3c7' : '#f0fdf4' }]}>
-                    <Text style={[styles.priorityText, { color: ticket?.priority?.toLowerCase() === 'critical' ? '#ef4444' : ticket?.priority?.toLowerCase() === 'high' ? '#d97706' : '#16a34a' }]}>
+                    <Text style={[styles.priorityText, { color: ticket?.priority?.toLowerCase() === 'critical' ? '#ef4444' : ticket?.priority?.toLowerCase() === 'high' ? '#d97706' : COLORS.primary }]}>
                       {(ticket?.priority || 'Low').toUpperCase()}
                     </Text>
                   </View>

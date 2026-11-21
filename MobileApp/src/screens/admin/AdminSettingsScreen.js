@@ -523,15 +523,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 24,
     marginHorizontal: 20,
-    padding: 20,
-    marginBottom: 16,
+    padding: 24,
+    marginBottom: 24,
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.03)',
     ...SHADOWS.soft,
   },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
   sectionTitle: { fontSize: 16, fontWeight: '900', color: COLORS.text },
-  sectionDesc: { fontSize: 12.5, color: COLORS.textMuted, fontWeight: '600', lineHeight: 18, marginBottom: 16 },
+  sectionDesc: { fontSize: 12.5, color: COLORS.textMuted, fontWeight: '600', lineHeight: 18, marginBottom: 20 },
 
   // Email verification card
   emailCardBody: { gap: 12 },

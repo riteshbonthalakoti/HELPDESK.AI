@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
-import { COLORS, SHADOWS } from '../../styles/theme';
+import { COLORS, SPACING, SHADOWS } from '../../styles/theme';
 import { Mail, Lock, User, Building2, Search, ChevronDown, Eye, EyeOff, ArrowRight, CheckCircle2, X } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useNotification } from '../../components/NotificationProvider';
@@ -219,7 +219,7 @@ const SignupScreen = () => {
       <View style={styles.bgBlob1} />
       <View style={styles.bgBlob2} />
 
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={[styles.scroll, { paddingTop: Math.max(insets.top + 16, 70) }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
           {/* Header */}
@@ -365,7 +365,7 @@ const SignupScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0b1120' },
+  container: { flex: 1, backgroundColor: COLORS.background },
   bgBlob1: { position: 'absolute', top: -120, right: -80, width: 300, height: 300, borderRadius: 150, backgroundColor: COLORS.primary + '20' },
   bgBlob2: { position: 'absolute', bottom: -80, left: -80, width: 240, height: 240, borderRadius: 120, backgroundColor: '#3b82f618' },
   scroll: { flexGrow: 1, padding: 28 },

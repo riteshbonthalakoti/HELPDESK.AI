@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
-import { COLORS, SHADOWS } from '../../styles/theme';
+import { COLORS, SPACING, SHADOWS } from '../../styles/theme';
 import { 
   UserCheck, UserX, Users, Mail, Building2, ShieldAlert, 
   Search, X, Eye, Trash2, Shield, Calendar, Hash, Loader2 
@@ -539,7 +539,7 @@ const AdminUsersScreen = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  header: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 16 },
+  header: { paddingHorizontal: 24, paddingTop: 20, paddingBottom: 20 },
   title: { fontSize: 28, fontWeight: '900', color: COLORS.text, letterSpacing: -0.8 },
   
   // Search
@@ -588,10 +588,10 @@ const styles = StyleSheet.create({
   userCard: { 
     flexDirection: 'row', 
     alignItems: 'center', 
-    backgroundColor: '#fff', 
+    backgroundColor: '#ffffff', 
     borderRadius: 24, 
-    padding: 16, 
-    marginBottom: 12, 
+    padding: 20, 
+    marginBottom: 16, 
     borderWidth: 1, 
     borderColor: 'rgba(0,0,0,0.03)', 
     ...SHADOWS.soft 
@@ -629,8 +629,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff', 
     borderTopLeftRadius: 32, 
     borderTopRightRadius: 32, 
-    padding: 24, 
-    maxHeight: '85%',
+    padding: 32, 
+    maxHeight: '80%',
     ...SHADOWS.soft 
   },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
@@ -662,8 +662,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center', 
     gap: 8, 
     backgroundColor: '#ef4444', 
-    height: 52, 
-    borderRadius: 18, 
+    height: 56, 
+    borderRadius: 20, 
     ...SHADOWS.soft 
   },
   purgeBtnText: { fontSize: 13, fontWeight: '800', color: '#fff', textTransform: 'uppercase', letterSpacing: 0.5 }
