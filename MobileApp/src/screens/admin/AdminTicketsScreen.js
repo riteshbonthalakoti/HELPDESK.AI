@@ -15,7 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
-import { COLORS, SHADOWS } from '../../styles/theme';
+import { COLORS, SPACING, SHADOWS } from '../../styles/theme';
 import {
   Search,
   ChevronRight,
@@ -48,7 +48,7 @@ const STATUS_OPTIONS = [
 ];
 
 const PRIORITY_OPTIONS = [
-  { id: 'low', label: 'Low', color: '#16a34a', bg: '#f0fdf4' },
+  { id: 'low', label: 'Low', color: COLORS.primary, bg: '#f0fdf4' },
   { id: 'medium', label: 'Medium', color: '#3b82f6', bg: '#eff6ff' },
   { id: 'high', label: 'High', color: '#d97706', bg: '#fef3c7' },
   { id: 'critical', label: 'Critical', color: '#ef4444', bg: '#fee2e2' },
@@ -124,7 +124,7 @@ const TicketItem = memo(
         ? '#d97706'
         : priorityLower === 'medium'
         ? '#3b82f6'
-        : '#16a34a';
+        : COLORS.primary;
     const priorityBg =
       priorityLower === 'critical'
         ? '#fee2e2'
@@ -240,7 +240,7 @@ const TicketItem = memo(
             {/* Inline Claim Action */}
             {isClaimedByMe ? (
               <View style={styles.claimedBadge}>
-                <CheckCircle2 size={12} color="#16a34a" />
+                <CheckCircle2 size={12} color={COLORS.primary} />
                 <Text style={styles.claimedBadgeText}>Claimed (You)</Text>
               </View>
             ) : isClaimedByOther ? (
@@ -625,10 +625,10 @@ const AdminTicketsScreen = () => {
             <View style={styles.kpiTop}>
               <Text style={styles.kpiLabel}>Resolved</Text>
               <View style={[styles.kpiIconWrap, { backgroundColor: '#f0fdf4' }]}>
-                <CheckCircle2 size={15} color="#16a34a" />
+                <CheckCircle2 size={15} color={COLORS.primary} />
               </View>
             </View>
-            <Text style={[styles.kpiValue, { color: '#16a34a' }]}>{resolvedCount}</Text>
+            <Text style={[styles.kpiValue, { color: COLORS.primary }]}>{resolvedCount}</Text>
             <Text style={styles.kpiSub}>Closed / solved</Text>
           </TouchableOpacity>
         </View>
@@ -784,8 +784,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 10,
+    paddingTop: 16,
+    paddingBottom: 12,
   },
   title: { fontSize: 26, fontWeight: '900', color: COLORS.text, letterSpacing: -0.8 },
   subtitle: { fontSize: 12, fontWeight: '600', color: COLORS.textMuted, marginTop: 2 },
@@ -816,8 +816,8 @@ const styles = StyleSheet.create({
   kpiCard: {
     flex: 1,
     backgroundColor: '#ffffff',
-    borderRadius: 18,
-    padding: 14,
+    borderRadius: 24,
+    padding: 24,
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.05)',
     ...SHADOWS.soft,
@@ -1018,7 +1018,7 @@ const styles = StyleSheet.create({
   claimedBadgeText: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#16a34a',
+    color: COLORS.primary,
   },
   claimedOtherBadge: {
     flexDirection: 'row',

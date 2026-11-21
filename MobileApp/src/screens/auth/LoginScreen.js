@@ -15,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BrainCircuit, Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react-native';
 import { supabase } from '../../lib/supabase';
-import { COLORS, SHADOWS } from '../../styles/theme';
+import { COLORS, SPACING, SHADOWS } from '../../styles/theme';
 
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('');
@@ -48,10 +48,10 @@ export default function LoginScreen({ navigation }) {
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior="padding"
       >
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-          <LinearGradient colors={['#0b1f17', '#0f2e22', '#064e3b']} style={styles.heroBanner}>
+          <LinearGradient colors={['#064e3b', '#0a3d31', '#0f2e22']} style={styles.heroBanner}>
             <View style={styles.brandRow}>
               <View style={styles.logoBadge}>
                 <BrainCircuit size={22} color="#34d399" />
@@ -139,6 +139,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 24,
     marginBottom: 16,
+    backgroundColor: 'rgba(6,78,59,0.8)',
   },
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 },
   logoBadge: {
@@ -152,15 +153,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   brandTitle: { fontSize: 18, fontWeight: '900', color: '#ffffff', letterSpacing: -0.4 },
-  brandAccent: { color: '#34d399' },
+  brandAccent: { color: '#10b981' },
   heroTitle: { fontSize: 28, fontWeight: '800', color: '#ffffff', marginBottom: 6 },
   heroSubtitle: { fontSize: 13, color: 'rgba(209,250,229,0.85)', fontWeight: '500' },
   card: {
     backgroundColor: '#ffffff',
     borderRadius: 24,
-    padding: 22,
+    padding: 24,
     borderWidth: 1,
-    borderColor: '#e7f5ee',
+    borderColor: '#e5e7eb',
     ...SHADOWS.soft,
   },
   label: {
@@ -174,7 +175,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: '#f8faf9',
+    backgroundColor: '#ffffff',
     borderWidth: 1.5,
     borderColor: '#e5e7eb',
     borderRadius: 14,

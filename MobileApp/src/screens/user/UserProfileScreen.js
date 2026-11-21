@@ -24,7 +24,7 @@ import {
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '../../lib/supabase';
-import { COLORS, SHADOWS } from '../../styles/theme';
+import { COLORS, SPACING, SHADOWS } from '../../styles/theme';
 import EmailChangeModal from '../../components/EmailChangeModal';
 
 export default function UserProfileScreen() {
@@ -204,7 +204,7 @@ export default function UserProfileScreen() {
             <View style={styles.orgRow}>
               <Text style={styles.orgKey}>Workspace Status</Text>
               <View style={styles.activeRow}>
-                <CheckCircle2 size={13} color="#16a34a" />
+                <CheckCircle2 size={13} color={COLORS.primary} />
                 <Text style={styles.activeVal}>Verified Active</Text>
               </View>
             </View>
@@ -256,11 +256,11 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingBottom: 100,
+    paddingBottom: 80,
   },
   header: {
-    paddingTop: 16,
-    paddingBottom: 14,
+    paddingTop: 20,
+    paddingBottom: 16,
   },
   headerLabel: {
     fontSize: 11,
@@ -281,11 +281,11 @@ const styles = StyleSheet.create({
     gap: 16,
     backgroundColor: '#ffffff',
     borderRadius: 24,
-    padding: 18,
-    marginBottom: 16,
+    padding: 24,
+    marginBottom: 20,
     ...SHADOWS.soft,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.03)',
+    borderColor: '#e5e7eb',
   },
   avatarWrap: {
     width: 60,
@@ -353,11 +353,11 @@ const styles = StyleSheet.create({
   sectionCard: {
     backgroundColor: '#ffffff',
     borderRadius: 24,
-    marginBottom: 16,
+    marginBottom: 20,
     overflow: 'hidden',
     ...SHADOWS.soft,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.03)',
+    borderColor: '#e5e7eb',
   },
   cardHeader: {
     flexDirection: 'row',
@@ -415,9 +415,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     backgroundColor: COLORS.primary,
-    height: 48,
-    borderRadius: 14,
+    height: 52,
+    borderRadius: 16,
     ...SHADOWS.soft,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
   },
   actionBtnText: {
     fontSize: 13,
@@ -451,7 +453,7 @@ const styles = StyleSheet.create({
   activeVal: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#16a34a',
+    color: COLORS.primary,
   },
   signOutBtn: {
     flexDirection: 'row',

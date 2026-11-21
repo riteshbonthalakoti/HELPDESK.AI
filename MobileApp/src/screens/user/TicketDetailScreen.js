@@ -8,7 +8,8 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator
+  ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
@@ -145,9 +146,9 @@ const TicketDetailScreen = ({ route }) => {
       </View>
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior="padding"
         style={{ flex: 1 }}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+        keyboardVerticalOffset={20}
       >
         {loading ? (
           <View style={styles.loadingContainer}>
@@ -241,21 +242,23 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
-    backgroundColor: COLORS.white,
+    padding: 20,
+    backgroundColor: '#fff',
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    paddingBottom: Platform.OS === 'ios' ? 30 : 12
+    borderTopColor: '#e5e7eb',
+    paddingBottom: 20,
   },
   input: {
     flex: 1,
-    backgroundColor: COLORS.background,
-    borderRadius: 24,
+    backgroundColor: '#fff',
+    borderRadius: 16,
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 12,
     maxHeight: 100,
     fontSize: 15,
-    marginRight: 8
+    color: COLORS.text,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
   },
   sendBtn: {
     width: 44,
