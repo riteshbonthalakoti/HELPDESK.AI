@@ -4,14 +4,42 @@ Duplicate Detection Service.
 Uses sentence-transformers to detect similar tickets.
 Includes thread-safe storage, bounded caching, and atomic JSON writes.
 """
-
+import hashlib
 import json
 import os
+import tempfile
 import threading
+import unicodedata
+from collections import OrderedDict
+# Share locks between service instances using the same storage file.
+_STORAGE_LOCKS = {}
+_STORAGE_LOCKS_GUARD = threading.Lock()
+
+
+def _get_storage_lock(storage_file):
+    key = os.path.normcase(os.path.realpath(storage_file))
+
+    with _STORAGE_LOCKS_GUARD:
+        if key not in _STORAGE_LOCKS:
+            _STORAGE_LOCKS[key] = threading.RLock()
+
+        return _STORAGE_LOCKS[key]
 
 SIMILARITY_THRESHOLD = 0.70
+
 MAX_CACHE_ENTRIES = int(os.getenv("DUPLICATE_CACHE_MAX", "1000"))
 
+if MAX_CACHE_ENTRIES <= 0:
+    raise ValueError("DUPLICATE_CACHE_MAX must be a positive integer")
+
+EMBEDDING_CACHE_MAX = int(
+    os.getenv("DUPLICATE_EMBEDDING_CACHE_MAX", "1000")
+)
+
+if EMBEDDING_CACHE_MAX <= 0:
+    raise ValueError(
+        "DUPLICATE_EMBEDDING_CACHE_MAX must be a positive integer"
+    )
 # Optional dependencies
 try:
     import numpy as np
@@ -31,29 +59,72 @@ class DuplicateService:
     def __init__(self):
         self.model = None
         self._loaded = False
+        self._load_failed = False
 
         # Each entry: (ticket_id, embedding, text)
         self._tickets = []
+        self._ticket_id_set = set()
+        # Bounded LRU cache for text embeddings.
+        self._embedding_cache = OrderedDict()
+        self._embedding_cache_lock = threading.Lock()
 
-        self._lock = threading.RLock()
-
-        self.storage_file = os.path.join(
-            os.path.dirname(__file__),
-            "..",
-            "data",
-            "knowledge_base.json",
+        self.storage_file = os.path.realpath(
+            os.path.join(
+                os.path.dirname(__file__),
+                "..",
+                "data",
+                "knowledge_base.json",
+            )
         )
 
+        self._lock = _get_storage_lock(self.storage_file)
         os.makedirs(os.path.dirname(self.storage_file), exist_ok=True)
 
     def is_available(self):
         """Return whether the embedding model loaded successfully."""
-        return self._loaded and self.model is not None
+        return self._loaded and not self._load_failed and self.model is not None
+
+    def _get_embedding(self, text: str):
+        """Return a cached embedding for normalized text or encode it once."""
+        normalized_text = unicodedata.normalize(
+            "NFKC",
+            " ".join(text.split()),
+        ).casefold()
+
+        cache_key = hashlib.sha256(
+            normalized_text.encode("utf-8")
+        ).hexdigest()
+
+        with self._embedding_cache_lock:
+            cached_embedding = self._embedding_cache.get(cache_key)
+
+            if cached_embedding is not None:
+                self._embedding_cache.move_to_end(cache_key)
+                return cached_embedding
+
+        embedding = self.model.encode(
+            normalized_text,
+            convert_to_tensor=True,
+        )
+
+        with self._embedding_cache_lock:
+            cached_embedding = self._embedding_cache.get(cache_key)
+
+            if cached_embedding is not None:
+                self._embedding_cache.move_to_end(cache_key)
+                return cached_embedding
+
+            self._embedding_cache[cache_key] = embedding
+
+            while len(self._embedding_cache) > EMBEDDING_CACHE_MAX:
+                self._embedding_cache.popitem(last=False)
+
+        return embedding
 
     def load(self):
         """Load the embedding model and the most recent cached tickets."""
         with self._lock:
-            if self._loaded:
+            if self._loaded or self._load_failed:
                 return
 
             if not _HAS_SENTENCE:
@@ -104,10 +175,7 @@ class DuplicateService:
                         ticket_id = item["ticket_id"]
                         text = item["text"]
 
-                        embedding = self.model.encode(
-                            text,
-                            convert_to_tensor=True,
-                        )
+                        embedding = self._get_embedding(text)
 
                         loaded_tickets.append(
                             (ticket_id, embedding, text)
@@ -119,7 +187,9 @@ class DuplicateService:
                         )
 
                 self._tickets = loaded_tickets
-
+                self._ticket_id_set = {
+                    ticket_id for ticket_id, _, _ in loaded_tickets
+                }
                 print(
                     f"[DuplicateService] Loaded "
                     f"{len(self._tickets)} tickets."
@@ -133,10 +203,10 @@ class DuplicateService:
     def save_to_disk(self, ticket_id: str, text: str):
         """Save a ticket using a bounded cache and atomic file replacement."""
         with self._lock:
-            temp_file = self.storage_file + ".tmp"
+            directory = os.path.dirname(self.storage_file)
+            temp_file = None
 
             try:
-                directory = os.path.dirname(self.storage_file)
                 os.makedirs(directory, exist_ok=True)
 
                 data = []
@@ -162,11 +232,21 @@ class DuplicateService:
                 # Retain only the newest entries.
                 data = data[-MAX_CACHE_ENTRIES:]
 
-                with open(temp_file, "w", encoding="utf-8") as file:
+                # Create a unique temporary file in the same directory.
+                with tempfile.NamedTemporaryFile(
+                    mode="w",
+                    encoding="utf-8",
+                    dir=directory,
+                    prefix=".knowledge_base_",
+                    suffix=".tmp",
+                    delete=False,
+                ) as file:
+                    temp_file = file.name
                     json.dump(data, file, indent=2)
 
                 # Atomic replacement prevents partially written JSON.
                 os.replace(temp_file, self.storage_file)
+                temp_file = None
 
                 print(
                     f"[DuplicateService] Saved ticket {ticket_id} "
@@ -178,30 +258,49 @@ class DuplicateService:
                     f"[DuplicateService] Failed to save to disk: {exc}"
                 )
 
-                # Clean up an incomplete temporary file.
-                try:
-                    if os.path.exists(temp_file):
+            finally:
+                # Remove any temporary file left after a failed save.
+                if temp_file is not None:
+                    try:
                         os.remove(temp_file)
-                except OSError:
-                    pass
+                    except OSError:
+                        pass
 
-    def add_ticket(self, ticket_id: str, text: str):
-        """Add a ticket to memory and persist it to disk."""
+    def add_ticket(self, ticket_id: str, text: str) -> bool:
+        """Add a ticket once, keeping memory and disk updates synchronized."""
         self.load()
 
         if not self.is_available():
-            return
-
-        embedding = self.model.encode(
-            text,
-            convert_to_tensor=True,
-        )
+            return False
 
         with self._lock:
-            self._tickets.append((ticket_id, embedding, text))
-            self._tickets = self._tickets[-MAX_CACHE_ENTRIES:]
+            if ticket_id in self._ticket_id_set:
+                return False
 
-        self.save_to_disk(ticket_id, text)
+        try:
+            embedding = self._get_embedding(text)
+        except Exception:
+            return False
+
+        with self._lock:
+            # Check again in case another thread added this ticket.
+            if ticket_id in self._ticket_id_set:
+                return False
+
+            self._tickets.append((ticket_id, embedding, text))
+            self._ticket_id_set.add(ticket_id)
+
+            # Keep the cache bounded and synchronize the ID set.
+            self._tickets = self._tickets[-MAX_CACHE_ENTRIES:]
+            self._ticket_id_set = {
+                existing_id
+                for existing_id, _, _ in self._tickets
+            }
+
+            # RLock allows save_to_disk to acquire the same lock.
+            self.save_to_disk(ticket_id, text)
+
+        return True
 
     def check_duplicate(
         self,
@@ -209,6 +308,15 @@ class DuplicateService:
         threshold: float = None,
     ) -> dict:
         """Find the most similar stored ticket."""
+        active_threshold = (
+            threshold
+            if threshold is not None
+            else SIMILARITY_THRESHOLD
+        )
+
+        if not 0.0 <= active_threshold <= 1.0:
+            raise ValueError("threshold must be between 0.0 and 1.0")
+
         self.load()
 
         if not self.is_available():
@@ -217,12 +325,6 @@ class DuplicateService:
                 "duplicate_ticket_id": None,
                 "similarity": 0.0,
             }
-
-        active_threshold = (
-            threshold
-            if threshold is not None
-            else SIMILARITY_THRESHOLD
-        )
 
         with self._lock:
             tickets = list(self._tickets)
@@ -234,10 +336,7 @@ class DuplicateService:
                 "similarity": 0.0,
             }
 
-        query_embedding = self.model.encode(
-            text,
-            convert_to_tensor=True,
-        )
+        query_embedding = self._get_embedding(text)
 
         best_score = 0.0
         best_id = None
