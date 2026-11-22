@@ -249,12 +249,15 @@ class DuplicateService:
 
                 # Atomic replacement prevents partially written JSON.
                 os.replace(temp_file, self.storage_file)
-                temp_file = None
 
-                print(
-                    f"[DuplicateService] Saved ticket {ticket_id} "
-                    "to knowledge base."
-                )
+                try:
+                    print(
+                        f"[DuplicateService] Saved ticket {ticket_id} "
+                        "to knowledge base."
+                    )
+                except Exception:
+                    pass
+
                 return True
 
             except Exception as exc:
