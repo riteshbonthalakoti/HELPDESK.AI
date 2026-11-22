@@ -175,6 +175,9 @@ class DuplicateService:
                         ticket_id = item["ticket_id"]
                         text = item["text"]
 
+                        if not isinstance(text, str):
+                            raise ValueError("ticket text must be a string")
+
                         embedding = self._get_embedding(text)
 
                         loaded_tickets.append(
@@ -252,11 +255,13 @@ class DuplicateService:
                     f"[DuplicateService] Saved ticket {ticket_id} "
                     "to knowledge base."
                 )
+                return True
 
             except Exception as exc:
                 print(
                     f"[DuplicateService] Failed to save to disk: {exc}"
                 )
+                return False
 
             finally:
                 # Remove any temporary file left after a failed save.
@@ -287,6 +292,10 @@ class DuplicateService:
             if ticket_id in self._ticket_id_set:
                 return False
 
+            # Preserve previous state in case persistence fails.
+            previous_tickets = list(self._tickets)
+            previous_ticket_ids = set(self._ticket_id_set)
+
             self._tickets.append((ticket_id, embedding, text))
             self._ticket_id_set.add(ticket_id)
 
@@ -298,7 +307,10 @@ class DuplicateService:
             }
 
             # RLock allows save_to_disk to acquire the same lock.
-            self.save_to_disk(ticket_id, text)
+            if not self.save_to_disk(ticket_id, text):
+                self._tickets = previous_tickets
+                self._ticket_id_set = previous_ticket_ids
+                return False
 
         return True
 
@@ -347,7 +359,7 @@ class DuplicateService:
                 stored_embedding,
             ).item()
 
-            if score > best_score:
+            if best_id is None or score > best_score:
                 best_score = score
                 best_id = ticket_id
 
