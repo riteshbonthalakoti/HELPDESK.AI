@@ -1,17 +1,17 @@
 export const COLORS = {
-  background: '#f8faf9',
+  background: '#f6f8f7',
   surface: '#ffffff',
   surfaceDark: '#f3f4f6',
-  primary: '#16a34a',
-  primaryDark: '#15803d',
+  primary: '#10b981',
+  primaryDark: '#059669',
   primaryLight: '#dcfce7',
   secondary: '#0f1f12',
   accent: '#10b981',
   text: '#0f1f12',
-  textLight: '#4b5563',
+  textLight: '#6b7280',
   textMuted: '#9ca3af',
-  border: '#f0fdf4',
-  borderDark: '#e5e7eb',
+  border: '#e5e7eb',
+  borderDark: '#d1d5db',
   error: '#ef4444',
   errorLight: '#fee2e2',
   success: '#10b981',
@@ -24,7 +24,7 @@ export const COLORS = {
   black: '#000000',
   transparent: 'transparent',
   // Premium Gradients
-  primaryGradient: ['#16a34a', '#22c55e'],
+  heroGradient: ['#064e3b', '#0f2e22', '#0d9488'],
   darkGradient: ['#0f172a', '#1e293b'],
 };
 
@@ -46,7 +46,7 @@ export const SHADOWS = {
     elevation: 3,
   },
   medium: {
-    shadowColor: '#16a34a',
+    shadowColor: '#0f1f12',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.15,
     shadowRadius: 16,
@@ -55,8 +55,8 @@ export const SHADOWS = {
 };
 
 export const FONTS = {
-  bold: 'System',
-  semibold: 'System',
-  medium: 'System',
-  regular: 'System',
+  bold: { fontFamily: 'System', fontWeight: '900' },
+  semibold: { fontFamily: 'System', fontWeight: '600' },
+  medium: { fontFamily: 'System', fontWeight: '500' },
+  regular: { fontFamily: 'System', fontWeight: '400' },
 };

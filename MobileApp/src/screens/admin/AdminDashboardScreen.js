@@ -6,7 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
-import { COLORS, SHADOWS } from '../../styles/theme';
+import { COLORS, SPACING, SHADOWS } from '../../styles/theme';
 import {
   Ticket, Activity, ShieldCheck, AlertTriangle, Clock,
   Cpu, Users, ChevronRight, BarChart3, Settings
@@ -149,7 +149,7 @@ const AdminDashboardScreen = () => {
   const prioritized = tickets.filter(t => t.priority).length;
 
   const aiSubsystems = [
-    { name: 'Classifier Engine', status: categorized > 0 ? 'Active' : 'Standby', details: `${((categorized / totalCount) * 100).toFixed(0)}% Coverage`, icon: Cpu, color: '#16a34a' },
+    { name: 'Classifier Engine', status: categorized > 0 ? 'Active' : 'Standby', details: `${((categorized / totalCount) * 100).toFixed(0)}% Coverage`, icon: Cpu, color: COLORS.primary },
     { name: 'Priority Routing', status: prioritized > 0 ? 'Active' : 'Standby', details: `${((prioritized / totalCount) * 100).toFixed(0)}% Routed`, icon: BarChart3, color: '#3b82f6' },
     { name: 'Semantic Analysis', status: tickets.length > 0 ? 'Active' : 'Standby', details: `${tickets.length} Scanned`, icon: Activity, color: '#8b5cf6' },
     { name: 'Duplicate Detection', status: 'Active', details: 'Optimal', icon: ShieldCheck, color: '#f97316' },
@@ -232,10 +232,10 @@ const AdminDashboardScreen = () => {
 
             <View style={[styles.slaIndicatorCard, { backgroundColor: '#f0fdf4', borderColor: '#bbf7d0' }]}>
               <View style={styles.slaHeaderRow}>
-                <ShieldCheck size={16} color="#16a34a" />
-                <Text style={[styles.slaValue, { color: '#16a34a' }]}>{healthyCount}</Text>
+                <ShieldCheck size={16} color={COLORS.primary} />
+                <Text style={[styles.slaValue, { color: COLORS.primary }]}>{healthyCount}</Text>
               </View>
-              <Text style={[styles.slaLabel, { color: '#16a34a' }]}>Healthy</Text>
+              <Text style={[styles.slaLabel, { color: COLORS.primary }]}>Healthy</Text>
             </View>
           </View>
         </View>
@@ -294,7 +294,7 @@ const AdminDashboardScreen = () => {
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 <View style={[styles.priorityBadge, { backgroundColor: ticket.priority === 'Critical' ? '#fee2e2' : ticket.priority === 'High' ? '#fef3c7' : '#f0fdf4' }]}>
-                  <Text style={[styles.priorityBadgeText, { color: ticket.priority === 'Critical' ? '#ef4444' : ticket.priority === 'High' ? '#d97706' : '#16a34a' }]}>
+                  <Text style={[styles.priorityBadgeText, { color: ticket.priority === 'Critical' ? '#ef4444' : ticket.priority === 'High' ? '#d97706' : COLORS.primary }]}>
                     {ticket.priority || 'Low'}
                   </Text>
                 </View>
@@ -322,8 +322,8 @@ const styles = StyleSheet.create({
     alignItems: 'center', 
     justifyContent: 'space-between',
     paddingHorizontal: 24, 
-    paddingTop: 16, 
-    paddingBottom: 20 
+    paddingTop: 20, 
+    paddingBottom: 24 
   },
   title: { fontSize: 28, fontWeight: '900', color: COLORS.text, letterSpacing: -0.8 },
   subtitle: { fontSize: 13, fontWeight: '600', color: COLORS.textMuted, marginTop: 2 },
@@ -346,8 +346,8 @@ const styles = StyleSheet.create({
   statCard: { 
     width: '48%', 
     backgroundColor: '#ffffff', 
-    borderRadius: 20, 
-    padding: 16, 
+    borderRadius: 24, 
+    padding: 24, 
     borderLeftWidth: 4, 
     ...SHADOWS.soft 
   },
@@ -362,8 +362,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff', 
     borderRadius: 24, 
     marginHorizontal: 20, 
-    padding: 20, 
-    marginBottom: 20, 
+    padding: 24, 
+    marginBottom: 24, 
     borderWidth: 1, 
     borderColor: 'rgba(0,0,0,0.03)', 
     ...SHADOWS.soft 

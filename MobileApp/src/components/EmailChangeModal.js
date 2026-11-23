@@ -351,7 +351,7 @@ export default function EmailChangeModal({ visible, onClose, currentEmail, onSuc
             {step === 'done' && (
               <View style={styles.doneContainer}>
                 <View style={styles.doneIconWrap}>
-                  <CheckCircle2 size={44} color="#16a34a" />
+                  <CheckCircle2 size={44} color={COLORS.primary} />
                 </View>
                 <Text style={styles.doneTitle}>Email Successfully Changed!</Text>
                 <Text style={styles.doneDesc}>

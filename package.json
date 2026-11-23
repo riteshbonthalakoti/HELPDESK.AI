@@ -1,5 +1,6 @@
 {
   "scripts": {
+    "dev": "npm --prefix Frontend run dev",
     "build": "cd Frontend && npm install && npm run build",
     "lint:md": "markdownlint '**/*.md'"
   },

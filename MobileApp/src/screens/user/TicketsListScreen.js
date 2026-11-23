@@ -6,7 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
-import { COLORS, SHADOWS } from '../../styles/theme';
+import { COLORS, SPACING, SHADOWS } from '../../styles/theme';
 import { Ticket, Clock, CheckCircle2, AlertTriangle, ChevronRight, Inbox } from 'lucide-react-native';
 
 const FILTERS = ['All', 'Active', 'Resolved'];
@@ -188,7 +188,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 24, paddingTop: 16, paddingBottom: 12,
+    paddingHorizontal: 24, paddingTop: 20, paddingBottom: 20,
   },
   headerLabel: { fontSize: 11, fontWeight: '800', color: COLORS.textMuted, letterSpacing: 1.5, marginBottom: 4 },
   headerTitle: { fontSize: 30, fontWeight: '900', color: COLORS.text, letterSpacing: -0.8 },
