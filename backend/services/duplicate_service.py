@@ -124,7 +124,7 @@ class DuplicateService:
                 self._embedding_cache.popitem(last=False)
 
         return embedding
-    
+
     @staticmethod
     def _embedding_array(embedding):
         """Convert embeddings into normalized float32 arrays."""
