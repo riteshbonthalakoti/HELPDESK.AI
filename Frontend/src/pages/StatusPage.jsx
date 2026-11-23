@@ -69,7 +69,12 @@ export default function StatusPage() {
 
             const latency = Math.round(performance.now() - startTime);
 
-            if (!response.ok && !(endpoint === '/ready' && response.status === 503)) {
+            // The readiness endpoint uses HTTP 503 to report
+            // valid readiness data when the backend is not ready.
+            if (
+                !response.ok &&
+                !(endpoint === '/ready' && response.status === 503)
+            ) {
                 throw new Error(`${endpoint} returned HTTP ${response.status}`);
             }
 
@@ -86,32 +91,54 @@ export default function StatusPage() {
         setError('');
 
         try {
+            // Each probe is handled independently so that one failure
+            // does not discard a successful response from the other.
             const [healthResult, readinessResult] = await Promise.allSettled([
                 fetchEndpoint('/health'),
                 fetchEndpoint('/ready')
             ]);
 
-            if (healthResult.status === 'rejected') {
-                throw healthResult.reason;
-            }
+            const healthSucceeded = healthResult.status === 'fulfilled';
+            const readinessSucceeded = readinessResult.status === 'fulfilled';
 
-            setHealthData(healthResult.value.data);
-            setHealthLatency(healthResult.value.latency);
-            setIsOnline(true);
+            // Retain health data only when the health probe succeeds.
+            setHealthData(
+                healthSucceeded ? healthResult.value.data : null
+            );
 
-            if (readinessResult.status === 'fulfilled') {
-                setReadinessData(readinessResult.value.data);
-                setReadinessLatency(readinessResult.value.latency);
-            } else {
-                setReadinessData(null);
-                setReadinessLatency(null);
+            setHealthLatency(
+                healthSucceeded ? healthResult.value.latency : null
+            );
+
+            // Retain readiness data even if the health probe fails.
+            setReadinessData(
+                readinessSucceeded ? readinessResult.value.data : null
+            );
+
+            setReadinessLatency(
+                readinessSucceeded ? readinessResult.value.latency : null
+            );
+
+            // The backend is reachable if either probe responds.
+            setIsOnline(healthSucceeded || readinessSucceeded);
+
+            if (!healthSucceeded && !readinessSucceeded) {
                 setError(
-                    'Backend is responding, but readiness checks are unavailable.'
+                    'Both health and readiness probes failed. The backend may be unavailable.'
+                );
+            } else if (!healthSucceeded) {
+                setError(
+                    'Health probe failed, but readiness data is available.'
+                );
+            } else if (!readinessSucceeded) {
+                setError(
+                    'Readiness probe failed, but health data is available.'
                 );
             }
 
             setLastChecked(new Date());
         } catch (err) {
+            // Handles unexpected errors outside the individual probes.
             console.error('Status check failed:', err);
 
             setIsOnline(false);
@@ -121,9 +148,7 @@ export default function StatusPage() {
             setReadinessLatency(null);
 
             setError(
-                err.name === 'AbortError'
-                    ? 'Backend health check timed out. The server may be unavailable.'
-                    : err.message || 'Unable to connect to the backend.'
+                err.message || 'Unable to retrieve backend status.'
             );
 
             setLastChecked(new Date());
@@ -138,12 +163,17 @@ export default function StatusPage() {
 
     const checks = readinessData?.checks || {};
 
+    const hasSupabaseProbeResult = Object.prototype.hasOwnProperty.call(
+        checks,
+        'supabase_configured'
+    );
+
     const classifierHealthy = healthData?.classifier_loaded === true;
     const nerHealthy = healthData?.ner_loaded === true;
 
-    const readinessHealthy =
-        readinessData?.status === 'ready' &&
-        Object.values(checks).every(value => value === true);
+    // The backend determines readiness, including optional checks
+    // when degraded startup is enabled.
+    const readinessHealthy = readinessData?.status === 'ready';
 
     const services = [
         {
@@ -160,18 +190,13 @@ export default function StatusPage() {
         },
         {
             name: 'Supabase Data Gateway',
-            status: isOnline === null
+            status: !hasSupabaseProbeResult
                 ? 'unknown'
-                : !isOnline
+                : isOnline === false
                     ? 'offline'
-                    : Object.prototype.hasOwnProperty.call(
-                        checks,
-                        'supabase_configured'
-                    )
-                        ? checks.supabase_configured
-                            ? 'operational'
-                            : 'degraded'
-                        : 'unknown',
+                    : checks.supabase_configured
+                        ? 'operational'
+                        : 'degraded',
             desc: 'Database configuration and backend readiness.',
             latency: readinessLatency
         },
@@ -237,6 +262,12 @@ export default function StatusPage() {
             : isOnline === null
                 ? Activity
                 : CheckCircle;
+
+    const errorHeading = isOnline === false
+        ? 'Backend Unreachable'
+        : error.startsWith('Health probe failed')
+            ? 'Health Probe Unavailable'
+            : 'Readiness Check Unavailable';
 
     return (
         <div className="min-h-screen bg-[#f6f8f7] pb-20">
@@ -356,9 +387,7 @@ export default function StatusPage() {
 
                             <div>
                                 <h3 className="text-sm font-black text-red-800">
-                                    {isOnline === false
-                                        ? 'Backend Unreachable'
-                                        : 'Readiness Check Unavailable'}
+                                    {errorHeading}
                                 </h3>
 
                                 <p className="text-xs mt-1 font-medium text-red-700">
