@@ -171,6 +171,8 @@ class DuplicateInfo(BaseModel):
     is_duplicate: bool
     duplicate_ticket_id: str | None = None
     similarity: float = 0.0
+    cluster_id: str | None = None
+    confidence: float = 0.0
 
 
 class EntityInfo(BaseModel):
@@ -820,12 +822,25 @@ async def save_ticket(request_body: TicketSaveRequest):
         duplicate_text = description_text or subject_text
         if duplicate_text:
             try:
-                duplicate_service.add_ticket(str(ticket_id), duplicate_text)
+                duplicate_indexed = duplicate_service.add_ticket(
+                    str(ticket_id),
+                    duplicate_text,
+                )
+
+                if not duplicate_indexed:
+                    duplicate_index_warning = (
+                        "Duplicate index update skipped or unavailable."
+                    )
+                    print(
+                        f"[WARNING] {duplicate_index_warning} "
+                        f"ticket_id={ticket_id}"
+                    )
             except Exception as index_error:
                 duplicate_indexed = False
                 duplicate_index_warning = "Duplicate index update failed."
                 print(
-                    f"[WARNING] {duplicate_index_warning} ticket_id={ticket_id} error={index_error}"
+                    f"[WARNING] {duplicate_index_warning} "
+                    f"ticket_id={ticket_id} error={index_error}"
                 )
         else:
             duplicate_indexed = False
@@ -1052,7 +1067,7 @@ async def analyze_only(request_body: TicketRequest):
     try:
         dup_result = duplicate_service.check_duplicate(text, threshold=duplicate_sensitivity)
     except Exception:
-        dup_result = {"is_duplicate": False, "duplicate_ticket_id": None, "similarity": 0.0}
+        dup_result = {"is_duplicate": False, "duplicate_ticket_id": None, "similarity": 0.0, "cluster_id": None, "confidence": 0.0}
 
     # --- RAG Knowledge Base Check ---
     rag_match = None
@@ -1215,7 +1230,7 @@ async def analyze_stream(request_body: TicketRequest):
         try:
             dup_result = duplicate_service.check_duplicate(text, threshold=duplicate_sensitivity)
         except Exception:
-            dup_result = {"is_duplicate": False, "duplicate_ticket_id": None, "similarity": 0.0}
+            dup_result = {"is_duplicate": False, "duplicate_ticket_id": None, "similarity": 0.0, "cluster_id": None, "confidence": 0.0}
 
         yield f"data: {json.dumps({'step': 'Finding possible solutions', 'status': 'in_progress'})}\n\n"
         await asyncio.sleep(0.2)

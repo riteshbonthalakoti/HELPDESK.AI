@@ -536,7 +536,17 @@ class IncidentService:
     ) -> dict:
         """Correlate a new ticket against the active rolling window."""
         # Lazily ensure embedding model is loaded.
-        self._duplicate_service.load()
+        try:
+            self._duplicate_service.load()
+        except ImportError:
+            return {
+                "incident_id": None,
+                "is_major_incident": False,
+                "ticket_count": 0,
+                "affected_users": 0,
+                "similarity": 0.0,
+            }
+
         model = self._duplicate_service.model
         if model is None or util is None:
             return {
