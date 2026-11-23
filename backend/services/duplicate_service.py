@@ -11,6 +11,7 @@ import tempfile
 import threading
 import unicodedata
 from collections import OrderedDict
+from .cosine_similarity import cosine_similarity_matrix
 # Share locks between service instances using the same storage file.
 _STORAGE_LOCKS = {}
 _STORAGE_LOCKS_GUARD = threading.Lock()
@@ -64,6 +65,9 @@ class DuplicateService:
         # Each entry: (ticket_id, embedding, text)
         self._tickets = []
         self._ticket_id_set = set()
+        # Active outage-cluster index.
+        self._clusters = {}
+        self._ticket_cluster_ids = {}
         # Bounded LRU cache for text embeddings.
         self._embedding_cache = OrderedDict()
         self._embedding_cache_lock = threading.Lock()
@@ -120,6 +124,84 @@ class DuplicateService:
                 self._embedding_cache.popitem(last=False)
 
         return embedding
+    
+    @staticmethod
+    def _embedding_array(embedding):
+        """Convert embeddings into normalized float32 arrays."""
+        if hasattr(embedding, "detach"):
+            embedding = embedding.detach().cpu().numpy()
+
+        vector = np.asarray(embedding, dtype=np.float32).reshape(-1)
+        norm = np.linalg.norm(vector)
+
+        if norm <= 1e-9:
+            return np.zeros_like(vector, dtype=np.float32)
+
+        return vector / norm
+
+    def _index_ticket(self, ticket_id, embedding):
+        """Assign a ticket to its nearest outage cluster or create one."""
+        if np is None:
+            return
+
+        vector = self._embedding_array(embedding)
+
+        if self._clusters:
+            cluster_ids = list(self._clusters)
+            centroids = np.vstack([
+                self._clusters[cid]["centroid"]
+                for cid in cluster_ids
+            ])
+
+            scores = cosine_similarity_matrix(
+                vector,
+                centroids,
+            )
+            best_index = int(np.argmax(scores))
+            best_score = float(scores[best_index])
+
+            if best_score >= SIMILARITY_THRESHOLD:
+                cluster_id = cluster_ids[best_index]
+                cluster = self._clusters[cluster_id]
+
+                cluster["ticket_ids"].append(ticket_id)
+
+                # Update and normalize the cluster centroid.
+                member_embeddings = [
+                    self._embedding_array(item_embedding)
+                    for item_id, item_embedding, _ in self._tickets
+                    if item_id in cluster["ticket_ids"]
+                ]
+
+                centroid = np.mean(
+                    np.vstack(member_embeddings),
+                    axis=0,
+                )
+                norm = np.linalg.norm(centroid)
+                cluster["centroid"] = centroid / max(float(norm), 1e-9)
+
+                self._ticket_cluster_ids[ticket_id] = cluster_id
+                return
+
+        # No sufficiently similar cluster exists.
+        cluster_id = f"outage-{ticket_id}"
+
+        norm = np.linalg.norm(vector)
+        centroid = vector / max(float(norm), 1e-9)
+
+        self._clusters[cluster_id] = {
+            "centroid": centroid,
+            "ticket_ids": [ticket_id],
+        }
+        self._ticket_cluster_ids[ticket_id] = cluster_id
+
+    def _rebuild_cluster_index(self):
+        """Rebuild the active cluster index from loaded tickets."""
+        self._clusters.clear()
+        self._ticket_cluster_ids.clear()
+
+        for ticket_id, embedding, _ in self._tickets:
+            self._index_ticket(ticket_id, embedding)
 
     def load(self):
         """Load the embedding model and the most recent cached tickets."""
@@ -193,6 +275,7 @@ class DuplicateService:
                 self._ticket_id_set = {
                     ticket_id for ticket_id, _, _ in loaded_tickets
                 }
+                self._rebuild_cluster_index()
                 print(
                     f"[DuplicateService] Loaded "
                     f"{len(self._tickets)} tickets."
@@ -308,11 +391,12 @@ class DuplicateService:
                 existing_id
                 for existing_id, _, _ in self._tickets
             }
-
+            self._rebuild_cluster_index()
             # RLock allows save_to_disk to acquire the same lock.
             if not self.save_to_disk(ticket_id, text):
                 self._tickets = previous_tickets
                 self._ticket_id_set = previous_ticket_ids
+                self._rebuild_cluster_index()
                 return False
 
         return True
@@ -322,7 +406,7 @@ class DuplicateService:
         text: str,
         threshold: float = None,
     ) -> dict:
-        """Find the most similar stored ticket."""
+        """Find duplicates using vectorized outage-cluster similarity."""
         active_threshold = (
             threshold
             if threshold is not None
@@ -334,37 +418,69 @@ class DuplicateService:
 
         self.load()
 
-        if not self.is_available():
-            return {
-                "is_duplicate": False,
-                "duplicate_ticket_id": None,
-                "similarity": 0.0,
-            }
+        empty_result = {
+            "is_duplicate": False,
+            "duplicate_ticket_id": None,
+            "similarity": 0.0,
+            "cluster_id": None,
+            "confidence": 0.0,
+        }
 
-        with self._lock:
-            tickets = list(self._tickets)
-
-        if not tickets:
-            return {
-                "is_duplicate": False,
-                "duplicate_ticket_id": None,
-                "similarity": 0.0,
-            }
+        if not self.is_available() or np is None:
+            return empty_result
 
         query_embedding = self._get_embedding(text)
+        query_vector = self._embedding_array(query_embedding)
 
-        best_score = 0.0
-        best_id = None
+        if not np.any(query_vector):
+            return empty_result
 
-        for ticket_id, stored_embedding, _ in tickets:
-            score = util.cos_sim(
-                query_embedding,
-                stored_embedding,
-            ).item()
+        with self._lock:
+            if not self._tickets or not self._clusters:
+                return empty_result
 
-            if best_id is None or score > best_score:
-                best_score = score
-                best_id = ticket_id
+            cluster_ids = list(self._clusters)
+
+            centroids = np.vstack([
+                self._clusters[cid]["centroid"]
+                for cid in cluster_ids
+            ])
+
+            cluster_scores = cosine_similarity_matrix(
+                query_vector,
+                centroids,
+            )
+
+            best_cluster_index = int(np.argmax(cluster_scores))
+            cluster_id = cluster_ids[best_cluster_index]
+
+            cluster = self._clusters[cluster_id]
+            member_ids = set(cluster["ticket_ids"])
+
+            members = [
+                (ticket_id, embedding)
+                for ticket_id, embedding, _ in self._tickets
+                if ticket_id in member_ids
+            ]
+
+            if not members:
+                return empty_result
+
+            ticket_ids = [ticket_id for ticket_id, _ in members]
+
+            embeddings = np.vstack([
+                self._embedding_array(embedding)
+                for _, embedding in members
+            ])
+
+            scores = cosine_similarity_matrix(
+                query_vector,
+                embeddings,
+            )
+
+            best_index = int(np.argmax(scores))
+            best_score = float(scores[best_index])
+            best_id = ticket_ids[best_index]
 
         is_duplicate = best_score >= active_threshold
 
@@ -372,4 +488,6 @@ class DuplicateService:
             "is_duplicate": is_duplicate,
             "duplicate_ticket_id": best_id if is_duplicate else None,
             "similarity": round(best_score, 4),
+            "cluster_id": cluster_id,
+            "confidence": round(best_score, 4),
         }
