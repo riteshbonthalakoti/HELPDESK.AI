@@ -168,8 +168,13 @@ export default function StatusPage() {
         'supabase_configured'
     );
 
-    const classifierHealthy = healthData?.classifier_loaded === true;
-    const nerHealthy = healthData?.ner_loaded === true;
+    const classifierHealthy = healthData
+    ? healthData.classifier_loaded === true
+    : checks.classifier_loaded === true;
+
+    const nerHealthy = healthData
+    ? healthData.ner_loaded === true
+    : checks.ner_loaded === true;
 
     // The backend determines readiness, including optional checks
     // when degraded startup is enabled.
