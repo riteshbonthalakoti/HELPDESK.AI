@@ -69,7 +69,7 @@ export default function StatusPage() {
 
             const latency = Math.round(performance.now() - startTime);
 
-            if (!response.ok) {
+            if (!response.ok && !(endpoint === '/ready' && response.status === 503)) {
                 throw new Error(`${endpoint} returned HTTP ${response.status}`);
             }
 
