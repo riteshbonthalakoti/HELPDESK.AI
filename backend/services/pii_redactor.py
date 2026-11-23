@@ -31,15 +31,15 @@ PHONE_PATTERN = re.compile(
 # ***, ghp_xxxxx, api_key=xxxx, secret=xxxx, bearer xxxx
 KEY_PATTERN = re.compile(
     r'(?:'
-    r'sk-(?:proj-)?[a-zA-Z0-9_-]{16,}'         # OpenAI keys (sk-xxx, sk-proj-xxx)
-    r'|pk-[a-zA-Z0-9_-]{16,}'                   # other API key format
-    r'|ghp_[a-zA-Z0-9_-]{16,}'                  # GitHub PAT
-    r'|gho_[a-zA-Z0-9_-]{16,}'                  # GitHub OAuth
-    r'|ghu_[a-zA-Z0-9_-]{16,}'                  # GitHub user token
+    r'sk-(?:proj-)?[a-zA-Z0-9_\.-]{8,}'          # OpenAI keys (sk-xxx, sk-proj-xxx, ellipses)
+    r'|pk-[a-zA-Z0-9_\.-]{8,}'                  # other API key format
+    r'|ghp_[a-zA-Z0-9_\.-]{8,}'                 # GitHub PAT
+    r'|gho_[a-zA-Z0-9_\.-]{8,}'                 # GitHub OAuth
+    r'|ghu_[a-zA-Z0-9_\.-]{8,}'                 # GitHub user token
     r'|[a-fA-F0-9]{32,64}'                      # raw hex strings (32-64 chars)
     r'|(?:api[_-]?key|secret|token|auth|bearer)'
     r'(?:\s*[:=]\s*|\s+)'
-    r'(?:[a-zA-Z0-9_-]{16,}|[a-fA-F0-9]{32,64})'
+    r'(?:[a-zA-Z0-9_\.-]{8,}|[a-fA-F0-9]{32,64})'
     r')',
 )
 
