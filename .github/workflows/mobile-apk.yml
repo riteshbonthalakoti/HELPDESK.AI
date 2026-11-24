@@ -78,28 +78,29 @@ jobs:
         working-directory: MobileApp
         run: npx expo prebuild --platform android --no-install
 
-      - name: Choose build type
+      - name: Choose signing mode
         id: mode
         run: |
           if [ -n "$KEYSTORE_BASE64" ]; then
             echo "type=release" >> "$GITHUB_OUTPUT"
           else
-            echo "type=debug" >> "$GITHUB_OUTPUT"
+            echo "type=qa" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Build debug APK
-        if: steps.mode.outputs.type == 'debug'
+      # A bundled (release) build is used even without secrets: the standard debug
+      # variant does not embed the JS bundle and would need a Metro dev server.
+      # Without secrets, Expo's generated project signs release with the debug key.
+      - name: Build bundled APK
         working-directory: MobileApp/android
-        run: ./gradlew assembleDebug --no-daemon
+        run: ./gradlew assembleRelease --no-daemon
 
-      - name: Build and sign release APK
+      - name: Sign with release keystore
         if: steps.mode.outputs.type == 'release'
         working-directory: MobileApp/android
         env:
           KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           K_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          ./gradlew assembleRelease --no-daemon
           echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
           BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
           OUT=app/build/outputs/apk/release
@@ -112,10 +113,21 @@ jobs:
           rm "$OUT/app-release.apk" "$OUT/aligned.apk"
           rm -f "$RUNNER_TEMP/release.keystore"
 
+      - name: Name QA APK
+        if: steps.mode.outputs.type == 'qa'
+        working-directory: MobileApp/android/app/build/outputs/apk/release
+        run: mv app-release.apk helpdesk-ai-qa.apk
+
+      - name: Verify APK signature
+        working-directory: MobileApp/android/app/build/outputs/apk/release
+        run: |
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          "$BT/apksigner" verify --print-certs *.apk
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: helpdesk-ai-${{ steps.mode.outputs.type }}-apk
-          path: MobileApp/android/app/build/outputs/apk/${{ steps.mode.outputs.type }}/*.apk
+          path: MobileApp/android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
           retention-days: 14
