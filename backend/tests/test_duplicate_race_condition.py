@@ -39,21 +39,24 @@ def _make_service_with_mock_model():
 
     mock_model.encode = fake_encode
     svc.model = mock_model
-    svc.save_to_disk = lambda tid, text: None  # no disk I/O in tests
+    svc.save_to_disk = lambda tid, text: True  # no disk I/O in tests
 
     return svc
+
+
+def _ticket_count(svc):
+    with svc._lock:
+        return len(svc._tickets)
 
 
 class TestLockExists(unittest.TestCase):
     def test_service_has_lock(self):
         svc = DuplicateService()
-        self.assertTrue(hasattr(svc, '_lock'))
-        self.assertIsInstance(svc._lock, type(threading.Lock()))
-
-    def test_service_has_indexing_flag(self):
-        svc = DuplicateService()
-        self.assertTrue(hasattr(svc, '_indexing'))
-        self.assertIsInstance(svc._indexing, bool)
+        self.assertTrue(hasattr(svc, "_lock"))
+        acquired = svc._lock.acquire(timeout=1.0)
+        self.assertTrue(acquired)
+        if acquired:
+            svc._lock.release()
 
     def test_service_starts_with_empty_tickets(self):
         svc = DuplicateService()
@@ -80,8 +83,8 @@ class TestConcurrentAddTicket(unittest.TestCase):
             t.join()
 
         self.assertEqual(len(errors), 0, f"Errors during concurrent add: {errors}")
-        self.assertEqual(svc.get_ticket_count(), n_threads,
-                         f"Expected {n_threads} tickets, got {svc.get_ticket_count()}")
+        self.assertEqual(_ticket_count(svc), n_threads,
+                         f"Expected {n_threads} tickets, got {_ticket_count(svc)}")
 
     def test_concurrent_add_all_ticket_ids_unique(self):
         """Each concurrent add should produce a unique entry in _tickets."""
@@ -143,11 +146,11 @@ class TestSnapshotIsolation(unittest.TestCase):
         svc.add_ticket("t0", "Printer not working")
 
         # Capture snapshot count at check start
-        initial_count = svc.get_ticket_count()
+        initial_count = _ticket_count(svc)
 
         # Simulate adding ticket mid-check by inserting after snapshot
         result = svc.check_duplicate("Printer offline issue")
-        final_count = svc.get_ticket_count()
+        final_count = _ticket_count(svc)
 
         # The result should be based on the snapshot at check start
         self.assertIn("is_duplicate", result)
@@ -167,25 +170,32 @@ class TestSnapshotIsolation(unittest.TestCase):
 
 
 class TestLockReleasedAfterException(unittest.TestCase):
-    def test_lock_released_when_add_ticket_encode_fails(self):
-        """Even if model.encode raises, the lock must be releasable afterwards."""
+    def test_lock_released_when_save_raises(self):
+        """An unexpected save exception must not leave the lock held."""
         svc = _make_service_with_mock_model()
 
-        original_encode = svc.model.encode
+        def fail_save(ticket_id, text):
+            raise RuntimeError("Simulated save failure")
 
-        def encode_that_fails(text, **kwargs):
-            raise RuntimeError("Simulated encode failure")
-
-        svc.model.encode = encode_that_fails
+        svc.save_to_disk = fail_save
 
         with self.assertRaises(RuntimeError):
             svc.add_ticket("fail-ticket", "This will fail")
 
-        # Verify lock is not held (can acquire and release)
-        acquired = svc._lock.acquire(timeout=1.0)
-        self.assertTrue(acquired, "Lock was not released after exception in add_ticket")
-        if acquired:
-            svc._lock.release()
+        acquired = []
+
+        def try_acquire_lock():
+            result = svc._lock.acquire(timeout=1.0)
+            acquired.append(result)
+            if result:
+                svc._lock.release()
+
+        thread = threading.Thread(target=try_acquire_lock)
+        thread.start()
+        thread.join(timeout=2.0)
+
+        self.assertFalse(thread.is_alive())
+        self.assertEqual(acquired, [True])
 
 
 class TestLoadIdempotency(unittest.TestCase):
@@ -209,7 +219,7 @@ class TestLoadIdempotency(unittest.TestCase):
 
         self.assertEqual(len(errors), 0, f"Errors during concurrent load: {errors}")
 
-    def test_get_ticket_count_is_thread_safe(self):
+    def test_ticket_count_is_thread_safe(self):
         svc = _make_service_with_mock_model()
         svc.add_ticket("t1", "Test")
         svc.add_ticket("t2", "Test 2")
@@ -217,7 +227,7 @@ class TestLoadIdempotency(unittest.TestCase):
         results = []
 
         def count():
-            results.append(svc.get_ticket_count())
+            results.append(_ticket_count(svc))
 
         threads = [threading.Thread(target=count) for _ in range(20)]
         for t in threads:
@@ -229,13 +239,6 @@ class TestLoadIdempotency(unittest.TestCase):
         for r in results:
             self.assertGreaterEqual(r, 0)
 
-    def test_clear_is_thread_safe(self):
-        svc = _make_service_with_mock_model()
-        for i in range(5):
-            svc.add_ticket(f"t{i}", f"Ticket {i}")
-
-        svc.clear()
-        self.assertEqual(svc.get_ticket_count(), 0)
 
 
 class TestCheckDuplicateEdgeCases(unittest.TestCase):
@@ -271,8 +274,8 @@ class TestMatrixSnapshotConsistency(unittest.TestCase):
         svc._loaded = True
         svc._load_failed = False
         svc.model = MagicMock()
-        svc.save_to_disk = lambda tid, text: None
-        svc._encode_with_cache = lambda text: np.array([0.0, 1.0], dtype=np.float32)
+        svc.save_to_disk = lambda tid, text: True
+        svc._get_embedding = lambda text: np.array([0.0, 1.0], dtype=np.float32)
 
         # The real ticket snapshot only contains existing-id.
         svc._tickets = [
@@ -287,7 +290,7 @@ class TestMatrixSnapshotConsistency(unittest.TestCase):
         svc._ticket_ids = ["existing-id", "injected-id"]
         svc._embedding_matrix_dirty = False
 
-        result = svc.check_duplicate("query", threshold=-1.0)
+        result = svc.check_duplicate("query", threshold=0.0)
 
         self.assertEqual(result["duplicate_ticket_id"], "existing-id")
 

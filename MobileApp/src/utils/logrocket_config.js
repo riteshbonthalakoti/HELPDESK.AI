@@ -1,14 +1,21 @@
 // LogRocket Privacy Masking Configuration
-import LogRocket from 'logrocket';
+// Safely guarded no-op stub for Mobile APK builds to prevent native crashing on Android New Architecture
 
 export const initLogRocket = () => {
-    LogRocket.init('helpdesk-ai/mobile-app', {
-        shouldCaptureIP: false,
-        network: {
-            requestSanitizer: (request) => {
-                request.headers['Authorization'] = null;
-                return request;
-            }
-        }
-    });
+  // LogRocket disabled on standalone Android APK to ensure clean build stability
+};
+
+export const LogRocket = {
+  init: initLogRocket,
+  identify: () => {},
+  captureException: () => {},
+  track: () => {},
+  getSessionURL: (cb) => {
+    if (typeof cb === 'function') cb(null);
+  },
+};
+
+export default {
+  initLogRocket,
+  LogRocket,
 };

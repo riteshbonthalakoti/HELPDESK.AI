@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ActivityIndicator, StyleSheet, TouchableOpacity } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
@@ -13,14 +13,17 @@ import {
   Inbox,
   Users,
   Settings,
+  AlertCircle,
+  Home,
 } from 'lucide-react-native';
-
+import { FAB } from './src/components/FloatingActionButton';
 import { supabase } from './src/lib/supabase';
 import { COLORS } from './src/styles/theme';
 
 import OnboardingScreen from './src/screens/auth/OnboardingScreen';
 import LoginScreen from './src/screens/auth/LoginScreen';
 import SignupScreen from './src/screens/auth/SignupScreen';
+import PendingApprovalScreen from './src/screens/auth/PendingApprovalScreen';
 
 import TicketsListScreen from './src/screens/user/TicketsListScreen';
 import CreateTicketScreen from './src/screens/user/CreateTicketScreen';
@@ -36,7 +39,112 @@ import AdminUsersScreen from './src/screens/admin/AdminUsersScreen';
 import AdminSettingsScreen from './src/screens/admin/AdminSettingsScreen';
 
 const Stack = createNativeStackNavigator();
-const Tab = createBottomTabNavigator();
+const Tab = createBottomTabNavigator;
+
+// Custom tab bar component with FAB for user navigator
+const UserTabBar = ({ state, navigation }) => {
+  const onNewTicketPress = () => {
+    navigation.navigate('NewTicket');
+  };
+
+  return (
+    <View style={styles.tabBarContainer}>
+      <View style={styles.tabBarLeft}>
+        <TouchableOpacity
+          style={styles.tabItem}
+          onPress={() => navigation.navigate('Home')}
+          activeOpacity={0.8}
+        >
+          <Home size={24} color={COLORS.primary} />
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.tabBarCenter}>
+        <FAB onPress={onNewTicketPress} color={COLORS.primary} />
+      </View>
+
+      <View style={styles.tabBarRight}>
+        <View style={styles.tabBarGroup}>
+          <TouchableOpacity
+            style={styles.tabItem}
+            onPress={() => navigation.navigate('Tickets')}
+            activeOpacity={0.8}
+          >
+            <Ticket size={24} color={COLORS.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.tabItem}
+            onPress={() => navigation.navigate('Alerts')}
+            activeOpacity={0.8}
+          >
+            <AlertCircle size={24} color={COLORS.primary} />
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity
+          style={styles.tabItem}
+          onPress={() => navigation.navigate('Profile')}
+          activeOpacity={0.8}
+        >
+          <Settings size={24} color={COLORS.primary} />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+};
+
+const AdminTabBar = ({ state, navigation }) => {
+  return (
+    <View style={styles.adminTabBarContainer}>
+      <View style={styles.adminTabBarLeft}>
+        <TouchableOpacity
+          style={styles.tabItem}
+          onPress={() => navigation.navigate('Overview')}
+          activeOpacity={0.8}
+        >
+          <LayoutDashboard size={24} color={COLORS.primary} />
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.adminTabBarCenter}>
+        <TouchableOpacity
+          style={styles.tabItem}
+          onPress={() => navigation.navigate('Tickets')}
+          activeOpacity={0.8}
+        >
+          <Inbox size={24} color={COLORS.primary} />
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.adminTabBarRight}>
+        <View style={styles.adminTabBarGroup}>
+          <TouchableOpacity
+            style={styles.tabItem}
+            onPress={() => navigation.navigate('Users')}
+            activeOpacity={0.8}
+          >
+            <Users size={24} color={COLORS.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.tabItem}
+            onPress={() => navigation.navigate('Analytics')}
+            activeOpacity={0.8}
+          >
+            <BarChart3 size={24} color={COLORS.primary} />
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity
+          style={styles.tabItem}
+          onPress={() => navigation.navigate('AdminSettings')}
+          activeOpacity={0.8}
+        >
+          <Settings size={24} color={COLORS.primary} />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+};
 
 function UserTabNavigator() {
   return (
@@ -47,37 +155,39 @@ function UserTabNavigator() {
         tabBarInactiveTintColor: COLORS.textMuted,
         tabBarStyle: styles.tabBar,
         tabBarLabelStyle: styles.tabLabel,
+        tabBarComponent: UserTabBar,
       }}
     >
+      <Tab.Screen
+        name="Home"
+        component={TicketsListScreen}
+        options={{
+          tabBarLabel: 'Home',
+          tabBarIcon: () => null,
+        }}
+      />
       <Tab.Screen
         name="Tickets"
         component={TicketsListScreen}
         options={{
-          tabBarIcon: ({ color, size }) => <Ticket size={size} color={color} />,
+          tabBarLabel: 'Tickets',
+          tabBarIcon: () => null,
         }}
       />
       <Tab.Screen
-        name="NewTicket"
-        component={CreateTicketScreen}
-        options={{
-          title: 'New Ticket',
-          tabBarIcon: ({ color, size }) => <PlusCircle size={size} color={color} />,
-        }}
-      />
-      <Tab.Screen
-        name="KnowledgeBase"
+        name="Alerts"
         component={KnowledgeBaseScreen}
         options={{
-          title: 'Help Docs',
-          tabBarIcon: ({ color, size }) => <BookOpen size={size} color={color} />,
+          tabBarLabel: 'Alerts',
+          tabBarIcon: () => null,
         }}
       />
       <Tab.Screen
-        name="UserSettings"
+        name="Profile"
         component={UserProfileScreen}
         options={{
-          title: 'Settings',
-          tabBarIcon: ({ color, size }) => <Settings size={size} color={color} />,
+          tabBarLabel: 'Profile',
+          tabBarIcon: () => null,
         }}
       />
     </Tab.Navigator>
@@ -93,38 +203,47 @@ function AdminTabNavigator() {
         tabBarInactiveTintColor: COLORS.textMuted,
         tabBarStyle: styles.tabBar,
         tabBarLabelStyle: styles.tabLabel,
+        tabBarComponent: AdminTabBar,
       }}
     >
       <Tab.Screen
-        name="AdminDashboard"
+        name="Overview"
         component={AdminDashboardScreen}
         options={{
-          title: 'Overview',
-          tabBarIcon: ({ color, size }) => <LayoutDashboard size={size} color={color} />,
+          tabBarLabel: 'Overview',
+          tabBarIcon: () => null,
         }}
       />
       <Tab.Screen
-        name="AdminTickets"
+        name="Tickets"
         component={AdminTicketsScreen}
         options={{
-          title: 'Tickets',
-          tabBarIcon: ({ color, size }) => <Inbox size={size} color={color} />,
+          tabBarLabel: 'Tickets',
+          tabBarIcon: () => null,
         }}
       />
       <Tab.Screen
-        name="AdminUsers"
+        name="Users"
         component={AdminUsersScreen}
         options={{
-          title: 'Users',
-          tabBarIcon: ({ color, size }) => <Users size={size} color={color} />,
+          tabBarLabel: 'Users',
+          tabBarIcon: () => null,
+        }}
+      />
+      <Tab.Screen
+        name="Analytics"
+        component={AdminTicketDetailScreen}
+        options={{
+          tabBarLabel: 'Analytics',
+          tabBarIcon: () => null,
         }}
       />
       <Tab.Screen
         name="AdminSettings"
         component={AdminSettingsScreen}
         options={{
-          title: 'Settings',
-          tabBarIcon: ({ color, size }) => <Settings size={size} color={color} />,
+          tabBarLabel: 'Settings',
+          tabBarIcon: () => null,
         }}
       />
     </Tab.Navigator>
@@ -134,49 +253,57 @@ function AdminTabNavigator() {
 export default function App() {
   const [session, setSession] = useState(null);
   const [role, setRole] = useState('user');
+  const [status, setStatus] = useState('active');
   const [booting, setBooting] = useState(true);
+
+  const resolveRole = async (activeSession, isMounted = true) => {
+    if (!activeSession?.user?.id) {
+      if (isMounted) {
+        setSession(null);
+        setRole('user');
+        setStatus('active');
+        setBooting(false);
+      }
+      return;
+    }
+    try {
+      const { data } = await supabase
+        .from('profiles')
+        .select('role, status')
+        .eq('id', activeSession.user.id)
+        .single();
+      if (isMounted) {
+        setSession(activeSession);
+        setRole(data?.role || 'user');
+        setStatus(data?.status || 'active');
+      }
+    } catch {
+      if (isMounted) {
+        setSession(activeSession);
+        setRole('user');
+        setStatus('active');
+      }
+    } finally {
+      if (isMounted) setBooting(false);
+    }
+  };
 
   useEffect(() => {
     let mounted = true;
 
-    const resolveRole = async (activeSession) => {
-      if (!activeSession?.user?.id) {
-        if (mounted) {
-          setSession(null);
-          setRole('user');
-          setBooting(false);
-        }
-        return;
-      }
-      try {
-        const { data } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', activeSession.user.id)
-          .single();
-        if (mounted) {
-          setSession(activeSession);
-          setRole(data?.role || 'user');
-        }
-      } catch {
-        if (mounted) {
-          setSession(activeSession);
-          setRole('user');
-        }
-      } finally {
-        if (mounted) setBooting(false);
-      }
-    };
-
-    supabase.auth.getSession().then(({ data }) => resolveRole(data?.session || null));
+    supabase.auth.getSession().then(({ data }) => resolveRole(data?.session || null, mounted));
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      resolveRole(nextSession);
+      resolveRole(nextSession, mounted);
     });
 
     return () => {
       mounted = false;
-      listener?.subscription?.unsubscribe();
+      if (typeof listener?.subscription?.unsubscribe === 'function') {
+        listener.subscription.unsubscribe();
+      } else if (typeof listener?.unsubscribe === 'function') {
+        listener.unsubscribe();
+      }
     };
   }, []);
 
@@ -191,6 +318,8 @@ export default function App() {
     );
   }
 
+  const isPending =
+    status === 'pending_approval' || role === 'pending_approval' || status === 'pending';
   const isAdmin = role === 'admin' || role === 'master_admin' || role === 'super_admin';
 
   return (
@@ -205,6 +334,8 @@ export default function App() {
                 <Stack.Screen name="Signup" component={SignupScreen} />
                 <Stack.Screen name="Onboarding" component={OnboardingScreen} />
               </>
+            ) : isPending ? (
+              <Stack.Screen name="PendingApproval" component={PendingApprovalScreen} />
             ) : isAdmin ? (
               <>
                 <Stack.Screen name="AdminMain" component={AdminTabNavigator} />
@@ -237,15 +368,64 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   tabBar: {
-    backgroundColor: '#ffffff',
-    borderTopColor: '#e7f5ee',
+    backgroundColor: 'rgba(246,248,247,0.8)',
+    borderTopColor: 'rgba(229,231,219,0.3)',
     borderTopWidth: 1,
-    height: 64,
-    paddingBottom: 8,
+    minHeight: 80,
+    paddingBottom: 16,
     paddingTop: 6,
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   tabLabel: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
+  },
+  tabBarContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+    paddingHorizontal: 20,
+  },
+  tabBarLeft: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  tabBarCenter: {
+    width: 56,
+    height: 56,
+  },
+  tabBarRight: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  adminTabBarContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+    paddingHorizontal: 20,
+    paddingBottom: 4,
+  },
+  adminTabBarLeft: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  adminTabBarCenter: {
+    width: 48,
+    height: 48,
+  },
+  adminTabBarRight: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  adminTabBarGroup: {
+    flexDirection: 'row',
+    gap: 16,
+    marginBottom: -8,
+  },
+  tabItem: {
+    alignItems: 'center',
   },
 });

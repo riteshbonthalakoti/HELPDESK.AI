@@ -97,7 +97,15 @@ class GeminiService:
                 model=self.model_name,
                 contents=prompt
             )
-            return response.text.strip().replace("\n", " ")
+            raw_summary = response.text.strip().replace("\n", " ")
+            
+            # Policy guardrail validation pass (#4192)
+            try:
+                from backend.services.rule_engine import policy_guardrail_engine
+                guard_res = policy_guardrail_engine.validate_response(raw_summary)
+                return guard_res["sanitized_text"]
+            except Exception:
+                return raw_summary
         except Exception as e:
             print(f"[GeminiService] Summarization Error: {e}")
             return ticket_text[:100] + ("…" if len(ticket_text) > 100 else "")
