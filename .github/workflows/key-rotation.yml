@@ -32,6 +32,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           DB_ENCRYPTION_SECRET_KEY: ${{ secrets.DB_ENCRYPTION_SECRET_KEY }}
           KMS_PROVIDER: ${{ secrets.KMS_PROVIDER }}
           ENCRYPTED_MASTER_KEY: ${{ secrets.ENCRYPTED_MASTER_KEY }}

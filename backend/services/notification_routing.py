@@ -51,10 +51,13 @@ class NotificationRoutingMiddleware:
 
     def __init__(self):
         """Initialize the notification routing middleware."""
-        self.supabase = create_client(
-            os.getenv("SUPABASE_URL"),
+        url = os.getenv("SUPABASE_URL") or "https://mock.supabase.co"
+        key = (
             os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+            or os.getenv("SUPABASE_SERVICE_KEY")
+            or "dummy"
         )
+        self.supabase = create_client(url, key)
         self._settings_cache: Dict[str, Dict] = {}
         self._settings_cached_at: Dict[str, datetime] = {}
         self.cache_ttl = timedelta(

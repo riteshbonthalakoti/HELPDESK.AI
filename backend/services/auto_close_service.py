@@ -37,10 +37,13 @@ class AutoCloseService:
 
     def __init__(self):
         """Initialize the auto-close service with Supabase client."""
-        self.supabase = create_client(
-            os.getenv("SUPABASE_URL", "http://localhost"),
-            os.getenv("SUPABASE_SERVICE_ROLE_KEY", "dummy")
+        url = os.getenv("SUPABASE_URL") or "https://mock.supabase.co"
+        key = (
+            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+            or os.getenv("SUPABASE_SERVICE_KEY")
+            or "dummy"
         )
+        self.supabase = create_client(url, key)
         self.enabled = os.getenv("AUTO_CLOSE_ENABLED", "true").lower() == "true"
         self.default_auto_close_days = int(os.getenv("AUTO_CLOSE_DAYS", "7"))
         self.cron_schedule = os.getenv("AUTO_CLOSE_CRON_SCHEDULE", "0 2 * * *")  # 2 AM UTC daily
