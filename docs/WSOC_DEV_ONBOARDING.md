@@ -126,9 +126,7 @@ If you are contributing to the Android APK under `MobileApp/` (Expo SDK 54 / Rea
 ---
 
 ## ✅ WSOC 2026 Onboarding Checklist
-- [ ] Starred repository: https://github.com/riteshbonthalakoti/HELPDESK.AI
-- [ ] Followed project admin: https://github.com/riteshbonthalakoti
-- [ ] Forked and cloned from the `main` branch.
+- [ ] Cloned repository from the `main` branch.
 - [ ] Registered for an employee test account at https://helpdeskai1918.vercel.app/signup under company **RITESH PVT LTD**.
 - [ ] Assigned to issue prior to opening PR.
 - [ ] PR targets the `main` branch.
