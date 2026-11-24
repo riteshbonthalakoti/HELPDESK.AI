@@ -6,7 +6,8 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "test": "jest"
   },
   "dependencies": {
     "@logrocket/react-native": "^2.3.2",
@@ -42,6 +43,9 @@
   "private": true,
   "devDependencies": {
     "@types/jest": "^30.0.0",
-    "babel-preset-expo": "~54.0.10"
+    "babel-jest": "^30.5.2",
+    "babel-preset-expo": "~54.0.10",
+    "jest": "^30.5.2",
+    "jest-expo": "~54.0.18"
   }
 }
