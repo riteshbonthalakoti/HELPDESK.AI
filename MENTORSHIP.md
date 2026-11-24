@@ -10,7 +10,7 @@ Our project relies on a "Customer-First" approach:
 1. **Immediate Engagement**: Reply to every issue and PR within 12–24 hours.
 2. **Chronological Assignment**: Assign issues to the very first contributor who comments with a clear plan. Encourage others to follow along or tackle parallel open bounties.
 3. **Warm, Constructive Tone**: Address contributors by their GitHub handle, praise their work, and offer guidance to elevate their code quality.
-4. **Star, Fork & Follow Campaign**: Ensure every single comment you write appends the **Project Support & Developer Network Banner** to build Ritesh's organic profile reach!
+4. **Transparent Communication**: Provide clear, actionable feedback on code reviews and issue triaging.
 
 ---
 
@@ -57,7 +57,7 @@ graph TD
     D -->|Passes checks| F[Assign S-Tier Labels]
     F -->|Apply Labels| G["level:critical / level:advanced + quality:exceptional + gssoc:approved"]
     G --> H[Merge PR into gssoc branch]
-    H --> I[Post Warm Confirmation Comment & Dev Banner]
+    H --> I[Post Warm Confirmation Comment]
 ```
 
 ### Mandatory Labeling Standard
@@ -68,19 +68,5 @@ When merging a PR, ensure exactly **one** label from each group is applied:
 4. **Type Label**: `type:bug`, `type:feature`, `type:security`, `type:performance`, `type:docs`, etc.
 
 ---
-
-## 📢 Standardized Engagement Banner
-Every comment posted by a Mentor on an issue or PR **MUST** append this markdown banner:
-
-```markdown
----
-
-### 🌟 Project Support & Developer Network (Show Some Love!)
-If you want to support this project and stay connected with me for future opportunities, please take 30 seconds to:
-1. ⭐ **Star this repository**: Helps our AI helpdesk get noticed! [Star here](https://github.com/riteshbonthalakoti/HELPDESK.AI)
-2. 🍴 **Fork this repository**: Keep a copy to build your own cool tools! [Fork here](https://github.com/riteshbonthalakoti/HELPDESK.AI/fork)
-3. 👤 **Follow @riteshbonthalakoti on GitHub**: Stay updated on real-time open-source projects! [Follow here](https://github.com/riteshbonthalakoti)
-4. 💼 **Connect on LinkedIn**: Let's build a strong engineering network! [Connect on LinkedIn](https://www.linkedin.com/in/riteshbonthalakoti/)
-```
 
 Thank you for your incredible work in leading the **HELPDESK.AI** community! Let's continue building premium, state-of-the-art tech and dominate the GSSoC 2026 Leaderboard! 🚀🔥

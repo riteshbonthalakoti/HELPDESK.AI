@@ -137,9 +137,7 @@ To have data to work with, you need to seed your database.
 ---
 
 ## ✅ Onboarding Checklist
-- [ ] Starred repository: https://github.com/riteshbonthalakoti/HELPDESK.AI
-- [ ] Followed project admin: https://github.com/riteshbonthalakoti
-- [ ] Forked and Cloned on the `gssoc` branch.
+- [ ] Cloned repository and checked out the `gssoc` branch.
 - [ ] Registered for test account at https://helpdeskaiv1.vercel.app/signup (Employee Signup under company **RITESH PVT LTD**).
 - [ ] Assigned to issue prior to opening PR.
 - [ ] Backend dependencies installed and running.

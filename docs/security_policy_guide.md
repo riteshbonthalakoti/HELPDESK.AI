@@ -53,7 +53,6 @@ If you have suggestions on how this process could be improved, please submit a p
 
 ## Security Best Practices for Contributors
 
-When contributing to HELPDESK.AI, please follow these security guidelines:
 
 - **Never commit sensitive data** (API keys, passwords, tokens, etc.)
 - **Use environment variables** for configuration secrets

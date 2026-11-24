@@ -2,7 +2,6 @@ Hi @{author},
 
 Thank you for your contribution! 🙌
 We appreciate your effort and encourage you to continue working on the `gssoc` branch.
-If you are new, please follow the onboarding steps:
 1. Sign‑up
 2. Select *Ritesh Private Limited*
 3. Verify email
