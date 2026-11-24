@@ -80,23 +80,28 @@ change. It can also be started manually (**Actions → Mobile APK → Run workfl
 It has two jobs:
 
 1. **Mobile Tests (Jest):** runs `npm ci` and `npm test`.
-2. **Build Android APK:** runs after the tests pass. It runs `expo prebuild`, builds with
-   Gradle, and uploads the APK as a build artifact (kept for 14 days).
+2. **Build Android APK:** runs after the tests pass. It runs `expo prebuild`, builds a
+   bundled APK with Gradle (`assembleRelease`), verifies the APK signature, and uploads it
+   as a build artifact (kept for 14 days).
 
 > **Note:** the suites under `src/screens/admin/__tests__/` are currently excluded in
 > `jest.config.js` because they were already failing. Remove the exclusion once they are fixed.
 
 ### Downloading and installing the APK
 1. Open the workflow run and scroll to **Artifacts**.
-2. Download `helpdesk-ai-debug-apk` (or `helpdesk-ai-release-apk`) and unzip it.
+2. Download `helpdesk-ai-qa-apk` (or `helpdesk-ai-release-apk`) and unzip it.
 3. Copy the `.apk` to an Android device and install it (allow "Install unknown apps").
 
-CI builds use placeholder `EXPO_PUBLIC_*` values, so the APK installs and launches but
-will not connect to a real backend.
+The APK embeds the JavaScript bundle, so it starts without a Metro dev server. CI builds use
+placeholder `EXPO_PUBLIC_*` values, so the app installs and launches but will not connect to
+a real backend.
 
 ### Signed release builds
-Without signing secrets, the workflow builds a **debug** APK. When the
-`ANDROID_KEYSTORE_BASE64` secret is set, it builds and signs a **release** APK instead.
+Without signing secrets, the workflow builds a **bundled QA APK** signed with the standard
+Android debug key. It is for testing only, not for store release. The standard `debug`
+variant is not used because it does not embed the JavaScript bundle and would need a Metro
+dev server to start. When the `ANDROID_KEYSTORE_BASE64` secret is set, the workflow
+re-signs the APK with your keystore and uploads it as `helpdesk-ai-release-apk`.
 Add these under **Settings → Secrets and variables → Actions**:
 
 | Secret | Description |
@@ -128,4 +133,4 @@ base64 -i release.keystore
 ```
 
 Never commit the keystore. GitHub does not pass secrets to workflows triggered by pull
-requests from forks, so those runs always produce a debug APK.
+requests from forks, so those runs always produce the QA APK (signed with the debug key).
