@@ -44,7 +44,7 @@ npx expo start
 Run tests:
 
 ```bash
-npx jest
+npm test
 ```
 
 ## Building a Standalone Android APK
@@ -70,3 +70,67 @@ npx eas build --profile preview_apk --platform android
    https://github.com/riteshbonthalakoti/HELPDESK.AI/issues?q=is%3Aissue+is%3Aopen+label%3Amobile-apk
 2. Comment on the issue to claim it, fork the repo, and open a PR referencing `Closes #<issue-number>`.
 3. Include **Android emulator/device screenshots or a short screen recording** and (for build issues) attach or verify a clean APK build.
+
+## CI/CD: Android APK builds
+
+The **Mobile APK** workflow (`.github/workflows/mobile-apk.yml`) runs on pull requests
+targeting `main` or `gssoc` and on pushes to `main`, whenever files under `MobileApp/**`
+change. It can also be started manually (**Actions → Mobile APK → Run workflow**).
+
+It has two jobs:
+
+1. **Mobile Tests (Jest):** runs `npm ci` and `npm test`.
+2. **Build Android APK:** runs after the tests pass. It runs `expo prebuild`, builds a
+   bundled APK with Gradle (`assembleRelease`), verifies the APK signature, and uploads it
+   as a build artifact (kept for 14 days).
+
+> **Note:** the suites under `src/screens/admin/__tests__/` are currently excluded in
+> `jest.config.js` because they were already failing. Remove the exclusion once they are fixed.
+
+### Downloading and installing the APK
+1. Open the workflow run and scroll to **Artifacts**.
+2. Download `helpdesk-ai-qa-apk` (or `helpdesk-ai-release-apk`) and unzip it.
+3. Copy the `.apk` to an Android device and install it (allow "Install unknown apps").
+
+The APK embeds the JavaScript bundle, so it starts without a Metro dev server. CI builds use
+placeholder `EXPO_PUBLIC_*` values, so the app installs and launches but will not connect to
+a real backend.
+
+### Signed release builds
+Without signing secrets, the workflow builds a **bundled QA APK** signed with the standard
+Android debug key. It is for testing only, not for store release. The standard `debug`
+variant is not used because it does not embed the JavaScript bundle and would need a Metro
+dev server to start. When the `ANDROID_KEYSTORE_BASE64` secret is set, the workflow
+re-signs the APK with your keystore and uploads it as `helpdesk-ai-release-apk`.
+Add these under **Settings → Secrets and variables → Actions**:
+
+| Secret | Description |
+|---|---|
+| `ANDROID_KEYSTORE_BASE64` | Base64-encoded keystore file |
+| `ANDROID_KEYSTORE_PASSWORD` | Keystore password |
+| `ANDROID_KEY_ALIAS` | Key alias |
+| `ANDROID_KEY_PASSWORD` | Key password |
+
+Create a keystore:
+
+```bash
+keytool -genkeypair -v -keystore release.keystore -alias <alias> \
+  -keyalg RSA -keysize 2048 -validity 10000
+```
+
+Encode it for the `ANDROID_KEYSTORE_BASE64` secret:
+
+```bash
+# Linux
+base64 -w0 release.keystore
+# macOS
+base64 -i release.keystore
+```
+
+```powershell
+# Windows (PowerShell)
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("release.keystore"))
+```
+
+Never commit the keystore. GitHub does not pass secrets to workflows triggered by pull
+requests from forks, so those runs always produce the QA APK (signed with the debug key).
