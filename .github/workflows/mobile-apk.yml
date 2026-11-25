@@ -50,7 +50,7 @@ jobs:
     name: Build Android APK
     runs-on: ubuntu-latest
     needs: mobile-test
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
       KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
@@ -78,6 +78,17 @@ jobs:
         working-directory: MobileApp
         run: npx expo prebuild --platform android --no-install
 
+      # Expo's generated gradle.properties caps Metaspace too low for release lint,
+      # which fails with "OutOfMemoryError: Metaspace" and then hangs the build.
+      # The leading newline matters: the generated file has no trailing newline, so
+      # appending directly would glue this setting onto the last property.
+      - name: Configure Gradle memory
+        working-directory: MobileApp/android
+        run: |
+          sed -i '/^org.gradle.jvmargs/d' gradle.properties
+          printf '\norg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g\n' >> gradle.properties
+          cat gradle.properties
+
       - name: Choose signing mode
         id: mode
         run: |
@@ -90,9 +101,11 @@ jobs:
       # A bundled (release) build is used even without secrets: the standard debug
       # variant does not embed the JS bundle and would need a Metro dev server.
       # Without secrets, Expo's generated project signs release with the debug key.
+      # Only arm64-v8a is built (covers most physical Android phones) to keep the
+      # native C++ compile within a reasonable time on a 2-core runner.
       - name: Build bundled APK
         working-directory: MobileApp/android
-        run: ./gradlew assembleRelease --no-daemon
+        run: ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a
 
       - name: Sign with release keystore
         if: steps.mode.outputs.type == 'release'
