@@ -78,6 +78,15 @@ jobs:
         working-directory: MobileApp
         run: npx expo prebuild --platform android --no-install
 
+      # Expo's generated gradle.properties caps Metaspace too low for release lint,
+      # which fails with "OutOfMemoryError: Metaspace" and then hangs the build.
+      - name: Configure Gradle memory
+        working-directory: MobileApp/android
+        run: |
+          sed -i '/^org.gradle.jvmargs/d' gradle.properties
+          echo "org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g" >> gradle.properties
+          grep jvmargs gradle.properties
+
       - name: Choose signing mode
         id: mode
         run: |
