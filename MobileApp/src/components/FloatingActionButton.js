@@ -1,5 +1,5 @@
 import React from 'react';
-import { TouchableOpacity, View, StyleSheet } from 'react-native';
+import { TouchableOpacity, StyleSheet } from 'react-native';
 import { PlusCircle } from 'lucide-react-native';
 
 const FloatingActionButton = ({ onPress, color }) => {
@@ -9,9 +9,8 @@ const FloatingActionButton = ({ onPress, color }) => {
       onPress={onPress}
       activeOpacity={0.85}
     >
-      <PlusCircle size={28} color={color || '#ffffff' />
-</PlusCircle>
-</TouchableOpacity>
+      <PlusCircle size={28} color={color || '#ffffff'} />
+    </TouchableOpacity>
   );
 };
 
@@ -35,4 +34,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export { FloatingActionButton };
+export { FloatingActionButton, FloatingActionButton as FAB };
