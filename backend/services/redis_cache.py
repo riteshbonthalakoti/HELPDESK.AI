@@ -30,7 +30,7 @@ def _parse_ttl_seconds(value: str | None) -> int:
 def _text_key(prefix: str, text: str) -> str:
     """
     Computes an MD5 hash of the given text for use as a cache key.
-    
+
     Raises:
         ValueError: If the input text is empty, only whitespace, or not a string.
     """
@@ -83,13 +83,13 @@ class RedisInferenceCache:
         """
         if not self.available:
             return None
-            
+
         try:
             cache_key = _text_key(CLASSIFICATION_PREFIX, text)
         except ValueError as err:
             logger.warning("[RedisCache] %s", err)
             return None
-            
+
         try:
             raw = self._client.get(cache_key)
             return json.loads(raw) if raw else None
@@ -104,13 +104,13 @@ class RedisInferenceCache:
         """
         if not self.available:
             return
-            
+
         try:
             cache_key = _text_key(CLASSIFICATION_PREFIX, text)
         except ValueError as err:
             logger.warning("[RedisCache] %s", err)
             return
-            
+
         try:
             self._client.setex(
                 cache_key,
@@ -127,13 +127,13 @@ class RedisInferenceCache:
         """
         if not self.available:
             return None
-            
+
         try:
             cache_key = _text_key(EMBEDDING_PREFIX, text)
         except ValueError as err:
             logger.warning("[RedisCache] %s", err)
             return None
-            
+
         try:
             raw = self._client.get(cache_key)
             if not raw:
@@ -151,13 +151,13 @@ class RedisInferenceCache:
         """
         if not self.available:
             return
-            
+
         try:
             cache_key = _text_key(EMBEDDING_PREFIX, text)
         except ValueError as err:
             logger.warning("[RedisCache] %s", err)
             return
-            
+
         try:
             self._client.setex(
                 cache_key,
@@ -190,6 +190,21 @@ class RedisInferenceCache:
             )
         except Exception as error:
             logger.warning("[RedisCache] set_json failed for %s: %s", key, error)
+
+    def delete_by_pattern(self, pattern: str) -> int:
+        """Delete every key matching a glob pattern. Returns the count deleted."""
+        if not self.available:
+            return 0
+        try:
+            keys = list(self._client.scan_iter(match=pattern))
+            if keys:
+                self._client.delete(*keys)
+            return len(keys)
+        except Exception as error:
+            logger.warning(
+                "[RedisCache] delete_by_pattern failed for %s: %s", pattern, error
+            )
+            return 0
 
 
 redis_cache = RedisInferenceCache()

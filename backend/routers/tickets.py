@@ -1,10 +1,9 @@
-
 import logging
 import hashlib
 import traceback
 from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException
-from backend.auth_cookie import get_current_user
+from backend.auth_cookie import get_current_user, get_user_role
 from backend.dependencies import supabase, duplicate_service
 from backend.schemas import TicketSaveRequest
 from backend.sanitization import sanitize_ticket_data
@@ -19,6 +18,11 @@ from backend.sanitization import sanitize_ticket_data
 from backend.services.supabase_utils import (
     create_ticket as _supabase_create_ticket,
     update_ticket as _supabase_update_ticket,
+)
+from backend.services.ticket_pagination_service import (
+    invalidate_tenant_ticket_cache,
+    list_tickets_page,
+    resolve_company_id,
 )
 
 logger = logging.getLogger(__name__)
@@ -41,31 +45,29 @@ def _rollback_ticket_insert(ticket_id, log) -> bool:
     except Exception as rollback_error:
         log.error(f"CRITICAL: Failed to roll back orphaned ticket_id={ticket_id}: {rollback_error}")
         return False
+
+
 @router.get("")
-async def get_tickets(company_id: str | None = None, user: dict = Depends(get_current_user)):
-    """Fetch persistent tickets from Supabase."""
+async def get_tickets(
+    company_id: str | None = None,
+    limit: int = 25,
+    offset: int = 0,
+    user: dict = Depends(get_current_user),
+):
+    """Fetch persistent tickets from Supabase (Issue #4185).
+
+    The tenant is derived from the authenticated user's profile, results
+    are paginated, and cache keys are scoped per tenant and per page.
+    See backend.services.ticket_pagination_service.
+    """
     if not supabase:
         raise HTTPException(status_code=500, detail="Database connection not initialized")
-    
-    from backend.services.redis_cache import redis_cache
-    
-    cache_key = f"helpdesk:tickets:list:{company_id or 'all'}"
-    if redis_cache.available:
-        cached_data = redis_cache.get_json(cache_key)
-        if cached_data is not None:
-            return cached_data
 
-    query = supabase.table("tickets").select("*").order("created_at", desc=True)
-    if company_id:
-        query = query.eq("company_id", company_id)
-        
-    res = query.execute()
-    data = res.data
-    
-    if redis_cache.available:
-        redis_cache.set_json(cache_key, data, ttl=300)
-        
-    return data
+    effective_company_id = resolve_company_id(
+        supabase, user.get("id"), get_user_role(user), company_id
+    )
+    return list_tickets_page(supabase, effective_company_id, limit, offset)
+
 
 @router.post("/save")
 async def save_ticket(request_body: TicketSaveRequest, user: dict = Depends(get_current_user)):
@@ -152,10 +154,10 @@ async def save_ticket(request_body: TicketSaveRequest, user: dict = Depends(get_
         # ── End Jaccard gate ──────────────────────────────────────────
 
         res = supabase.table("tickets").insert(final_data).execute()
-        
+
         if not res.data:
             raise Exception("Failed to insert ticket into database.")
-            
+
         ticket_id = res.data[0]["id"]
 
         # Everything below this point has already written the `tickets` row.
@@ -206,6 +208,7 @@ async def save_ticket(request_body: TicketSaveRequest, user: dict = Depends(get_
         response = {"status": "success", "ticket_id": ticket_id, "duplicate_indexed": duplicate_indexed}
         if duplicate_index_warning:
             response["duplicate_index_warning"] = duplicate_index_warning
+        invalidate_tenant_ticket_cache(final_data.get("company_id"))
         return response
 
     except HTTPException:
@@ -220,7 +223,7 @@ async def get_ticket_by_id(ticket_id: str, user: dict = Depends(get_current_user
     """Fetch single persistent ticket."""
     if not supabase:
         raise HTTPException(status_code=500, detail="Database connection not initialized")
-    
+
     res = supabase.table("tickets").select("*").eq("id", ticket_id).single().execute()
     if not res.data:
         raise HTTPException(status_code=404, detail="Ticket not found")
@@ -250,6 +253,9 @@ async def create_ticket(ticket: dict, user: dict = Depends(get_current_user)):
     created = _supabase_create_ticket(supabase, sanitized)
     if not created:
         raise HTTPException(status_code=500, detail="Failed to create ticket.")
+    invalidate_tenant_ticket_cache(
+        created.get("company_id") if isinstance(created, dict) else None
+    )
     return created
 
 
@@ -269,5 +275,7 @@ async def update_ticket(ticket_id: str, updates: dict, user: dict = Depends(get_
     updated = _supabase_update_ticket(supabase, ticket_id, sanitized_updates)
     if not updated:
         raise HTTPException(status_code=404, detail="Ticket not found")
+    invalidate_tenant_ticket_cache(
+        updated.get("company_id") if isinstance(updated, dict) else None
+    )
     return updated
-
