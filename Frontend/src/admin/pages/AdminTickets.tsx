@@ -293,7 +293,6 @@ const AdminTickets = () => {
     const [teamFilter, setTeamFilter] = useState('All');
     const [languageFilter, setLanguageFilter] = useState('All');
     const [slaAtRisk, setSlaAtRisk] = useState(false);
-    const [agents, setAgents] = useState([]);
     const [tagFilters, setTagFilters] = useState([]);
 
     // ── Bulk Action State ───────────────────────────
