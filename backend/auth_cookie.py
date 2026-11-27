@@ -141,13 +141,16 @@ def get_user_role(user: dict | None) -> str:
     if not user:
         return "user"
 
-    metadata = user.get("user_metadata") or {}
     app_metadata = user.get("app_metadata") or {}
+    # Application roles come from app_metadata only: it is server managed,
+    # while user_metadata is editable by the signed-in user and must never
+    # decide authorization. The top-level claim stays as a last fallback
+    # for direct payloads (for real Supabase sessions it is just
+    # "authenticated", never an application role).
     role = (
-        user.get("role")
-        or metadata.get("role")
-        or app_metadata.get("role")
+        app_metadata.get("role")
         or app_metadata.get("user_role")
+        or user.get("role")
         or "user"
     )
     return str(role).strip().lower().replace("-", "_") or "user"
