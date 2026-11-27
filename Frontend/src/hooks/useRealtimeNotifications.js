@@ -1,51 +1,50 @@
-import { useEffect } from 'react';
-import { supabase } from '../lib/supabaseClient';
-import useAuthStore from '../store/authStore';
-import useTicketStore from '../store/ticketStore';
+import { useEffect } from "react";
+import { supabase } from "../lib/supabaseClient";
+import useAuthStore from "../store/authStore";
+import useTicketStore from "../store/ticketStore";
 
 const useTicketsRealtime = () => {
-    const { user, profile } = useAuthStore();
-    const { addTicket, updateTicket, removeTicket } = useTicketStore();
+  const { user, profile } = useAuthStore();
+  const { addTicket, updateTicket, removeTicket } = useTicketStore();
 
-    useEffect(() => {
-        if (!user || !profile) return;
+  useEffect(() => {
+    const companyId = profile?.company_id;
+    const isAdmin = profile?.role === "admin" || profile?.role === "master_admin";
 
-        // Only admins see the live ticket queue
-        const isAdmin = profile.role === 'admin' || profile.role === 'master_admin';
-        if (!isAdmin) return;
+    if (!user || !profile || !companyId || !isAdmin) return;
 
-        const channel = supabase
-            .channel('tickets-realtime-dashboard')
-            .on(
-                'postgres_changes',
-                {
-                    event: '*',
-                    schema: 'public',
-                    table: 'tickets',
-                    filter: `company_id=eq.${profile.company_id}`,
-                },
-                (payload) => {
-                    const { eventType, new: newRecord, old: oldRecord } = payload;
+    const channelName = `tickets-realtime-dashboard-${companyId}`;
 
-                    if (eventType === 'INSERT') {
-                        addTicket(newRecord);
-                    }
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "tickets",
+          filter: `company_id=eq.${companyId}`,
+        },
+        (payload) => {
+          const eventType = payload?.eventType;
+          const newRecord = payload?.new;
+          const oldRecord = payload?.old;
 
-                    if (eventType === 'UPDATE') {
-                        updateTicket(newRecord.ticket_id, newRecord);
-                    }
+          if (eventType === "INSERT" && newRecord) {
+            addTicket(newRecord);
+          } else if (eventType === "UPDATE" && newRecord?.ticket_id) {
+            updateTicket(newRecord.ticket_id, newRecord);
+          } else if (eventType === "DELETE" && oldRecord?.ticket_id) {
+            removeTicket(oldRecord.ticket_id);
+          }
+        }
+      )
+      .subscribe();
 
-                    if (eventType === 'DELETE') {
-                        removeTicket(oldRecord.ticket_id);
-                    }
-                }
-            )
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
-    }, [user, profile, addTicket, updateTicket, removeTicket]);
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, profile, addTicket, updateTicket, removeTicket]);
 };
 
 export default useTicketsRealtime;
