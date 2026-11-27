@@ -272,10 +272,28 @@ async def update_ticket(ticket_id: str, updates: dict, user: dict = Depends(get_
         raise HTTPException(status_code=500, detail="Database connection not initialized")
 
     sanitized_updates = sanitize_ticket_data(updates)
+
+    previous_company_id = None
+    if "company_id" in sanitized_updates:
+        # A tenant move must also clear the previous tenant's cached pages.
+        try:
+            current = (
+                supabase.table("tickets")
+                .select("company_id")
+                .eq("id", ticket_id)
+                .single()
+                .execute()
+            )
+            if current and getattr(current, "data", None):
+                previous_company_id = current.data.get("company_id")
+        except Exception:
+            previous_company_id = None
+
     updated = _supabase_update_ticket(supabase, ticket_id, sanitized_updates)
     if not updated:
         raise HTTPException(status_code=404, detail="Ticket not found")
-    invalidate_tenant_ticket_cache(
-        updated.get("company_id") if isinstance(updated, dict) else None
-    )
+    new_company_id = updated.get("company_id") if isinstance(updated, dict) else None
+    invalidate_tenant_ticket_cache(new_company_id)
+    if previous_company_id and previous_company_id != new_company_id:
+        invalidate_tenant_ticket_cache(previous_company_id)
     return updated

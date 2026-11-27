@@ -243,3 +243,37 @@ def test_invalidation_clears_only_that_tenant(fake_cache):
 
     assert "helpdesk:tickets:company-a:limit25_offset0" not in fake_cache.store
     assert "helpdesk:tickets:company-b:limit25_offset0" in fake_cache.store
+
+
+def test_invalidation_also_clears_all_tenants_pages(fake_cache):
+    tickets = make_tickets("company-a", 5) + make_tickets("company-b", 5)
+    supabase = FakeSupabase(tickets, PROFILES)
+    service.list_tickets_page(supabase, "company-a", 25, 0)
+    service.list_tickets_page(supabase, "company-b", 25, 0)
+    service.list_tickets_page(supabase, None, 25, 0)  # master_admin "all" page
+    assert "helpdesk:tickets:all:limit25_offset0" in fake_cache.store
+
+    service.invalidate_tenant_ticket_cache("company-a")
+
+    assert "helpdesk:tickets:company-a:limit25_offset0" not in fake_cache.store
+    assert "helpdesk:tickets:all:limit25_offset0" not in fake_cache.store
+    assert "helpdesk:tickets:company-b:limit25_offset0" in fake_cache.store
+
+
+def test_master_admin_role_comes_from_app_metadata():
+    from backend.auth_cookie import get_user_role
+
+    # Real Supabase shape: the top-level role claim is "authenticated" for
+    # every signed-in user; the application role lives in app_metadata.
+    user = {
+        "id": "admin-1",
+        "role": "authenticated",
+        "user_metadata": {},
+        "app_metadata": {"role": "master_admin"},
+    }
+    role = get_user_role(user)
+    assert role == "master_admin"
+
+    supabase = FakeSupabase([], PROFILES)
+    assert service.resolve_company_id(supabase, "admin-1", role, "company-b") == "company-b"
+    assert service.resolve_company_id(supabase, "admin-1", role, None) is None

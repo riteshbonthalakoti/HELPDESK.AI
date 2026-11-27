@@ -144,10 +144,10 @@ def get_user_role(user: dict | None) -> str:
     metadata = user.get("user_metadata") or {}
     app_metadata = user.get("app_metadata") or {}
     role = (
-        user.get("role")
-        or metadata.get("role")
-        or app_metadata.get("role")
+        app_metadata.get("role")
         or app_metadata.get("user_role")
+        or metadata.get("role")
+        or user.get("role")
         or "user"
     )
     return str(role).strip().lower().replace("-", "_") or "user"

@@ -107,11 +107,17 @@ def list_tickets_page(
 
 
 def invalidate_tenant_ticket_cache(company_id: str | None) -> None:
-    """Drop every cached list page for one tenant after its tickets change."""
-    if not company_id:
-        return
-    deleted = redis_cache.delete_by_pattern(f"helpdesk:tickets:{company_id}:*")
+    """Drop cached list pages affected by a ticket write.
+
+    Clears the written tenant's pages and the master_admin "all tenants"
+    pages, which contain every tenant's tickets and would otherwise stay
+    stale until their TTL. Other tenants' pages are left untouched.
+    """
+    patterns = [f"helpdesk:tickets:{ALL_TENANTS}:*"]
+    if company_id:
+        patterns.append(f"helpdesk:tickets:{company_id}:*")
+    deleted = 0
+    for pattern in patterns:
+        deleted += redis_cache.delete_by_pattern(pattern)
     if deleted:
-        logger.info(
-            "Invalidated %s cached ticket pages for company %s", deleted, company_id
-        )
+        logger.info("Invalidated %s cached ticket pages after a ticket write", deleted)
