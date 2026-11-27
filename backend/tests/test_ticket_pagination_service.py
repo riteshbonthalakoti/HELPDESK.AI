@@ -277,3 +277,17 @@ def test_master_admin_role_comes_from_app_metadata():
     supabase = FakeSupabase([], PROFILES)
     assert service.resolve_company_id(supabase, "admin-1", role, "company-b") == "company-b"
     assert service.resolve_company_id(supabase, "admin-1", role, None) is None
+
+
+def test_user_metadata_role_cannot_escalate():
+    from backend.auth_cookie import get_user_role
+
+    # user_metadata is editable by the signed-in user in Supabase, so a
+    # role planted there must never grant master_admin.
+    user = {
+        "id": "user-1",
+        "role": "authenticated",
+        "user_metadata": {"role": "master_admin"},
+        "app_metadata": {},
+    }
+    assert get_user_role(user) != "master_admin"
