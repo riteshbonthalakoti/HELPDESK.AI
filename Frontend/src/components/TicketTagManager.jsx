@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { API_CONFIG } from "../../config";
 import TagChip from "./TagChip";
+import { filterTagsByQuery, normalizeTagQuery } from "../utils/tagSearch";
 
 /**
  * TicketTagManager — full tag UI for ticket detail view
@@ -20,6 +21,8 @@ export default function TicketTagManager({
   const [acceptedTags, setAcceptedTags]     = useState([]);
   const [popularTags, setPopularTags]       = useState([]);
   const [inputValue, setInputValue]         = useState("");
+  const [debouncedInputValue, setDebouncedInputValue] = useState("");
+  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
   const [showDropdown, setShowDropdown]     = useState(false);
   const [loadingSuggest, setLoadingSuggest] = useState(false);
   const [saving, setSaving]                 = useState(false);
@@ -36,6 +39,8 @@ export default function TicketTagManager({
   // ── Load existing tags on mount ─────────────────────────────────────────────
   useEffect(() => {
     if (!ticketId) return;
+    let isCurrent = true;
+
     (async () => {
       try {
         const token = await getToken();
@@ -43,12 +48,16 @@ export default function TicketTagManager({
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();
-        if (data.success) setAcceptedTags(data.tags || []);
+        if (isCurrent && data.success) setAcceptedTags(data.tags || []);
       } catch (e) {
         console.error("[TagManager] load tags:", e);
       }
     })();
-  }, [ticketId]);
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [BACKEND, getToken, ticketId]);
 
   // ── Fetch AI suggestions on mount ──────────────────────────────────────────
   const mountedRef = useRef(true);
@@ -81,25 +90,51 @@ export default function TicketTagManager({
       }
       if (mountedRef.current) setLoadingSuggest(false);
     })();
-  }, [ticketTitle, ticketBody, category, getToken]);
+  }, [ticketTitle, ticketBody, category, getToken, BACKEND]);
 
   // ── Load popular tags for autocomplete when companyId provided ─────────────
   useEffect(() => {
-    if (!companyId) return;
+    setPopularTags([]);
+    if (!companyId) return undefined;
+    let isCurrent = true;
+
     (async () => {
       try {
         const { data } = await supabase.auth.getSession();
         const token = data?.session?.access_token || "";
-        const res = await fetch(`${BACKEND}/api/tags/popular/${companyId}?limit=50`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const res = await fetch(
+          `${BACKEND}/api/tags/popular/${encodeURIComponent(companyId)}?limit=50`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (!res.ok) throw new Error(`Tag lookup failed (${res.status})`);
         const result = await res.json();
-        if (result.success) setPopularTags(result.popular_tags || []);
+        if (isCurrent) {
+          setPopularTags(result.success && Array.isArray(result.popular_tags) ? result.popular_tags : []);
+        }
       } catch (e) {
-        console.error("[TagManager] fetch popular tags:", e);
+        if (isCurrent) console.error("[TagManager] fetch popular tags:", e);
       }
     })();
-  }, [companyId]);
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [BACKEND, companyId]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedInputValue(inputValue);
+      setActiveSuggestionIndex(-1);
+    }, 200);
+
+    return () => window.clearTimeout(timer);
+  }, [inputValue]);
+
+  const autocompleteOptions = useMemo(() => {
+    const availableTags = popularTags.filter((item) => !acceptedTags.includes(item?.tag));
+    return filterTagsByQuery(availableTags, debouncedInputValue, 5)
+      .map((item) => item.tag);
+  }, [acceptedTags, debouncedInputValue, popularTags]);
 
   // ── Accept / Dismiss suggestions ───────────────────────────────────────────
   function acceptTag(tag) {
@@ -115,31 +150,53 @@ export default function TicketTagManager({
     setAcceptedTags((p) => p.filter((t) => t !== tag));
   }
 
-  // ── Custom tag input ────────────────────────────────────────────────────────
-  function handleKeyDown(e) {
-    if (e.key === "Enter" && inputValue.trim()) {
-      e.preventDefault();
-      const tag = inputValue.trim().toLowerCase()
-        .replace(/\s+/g, "-")
-        .replace(/[^a-z0-9-]/g, "");
-      if (!acceptedTags.includes(tag)) setAcceptedTags((p) => [...p, tag]);
-      setInputValue("");
-      setShowDropdown(false);
-    }
-    if (e.key === "Escape") {
-      setShowDropdown(false);
-      setInputValue("");
-    }
+  function selectAutocompleteTag(tag) {
+    if (!acceptedTags.includes(tag)) setAcceptedTags((p) => [...p, tag]);
+    setInputValue("");
+    setDebouncedInputValue("");
+    setActiveSuggestionIndex(-1);
+    setShowDropdown(false);
   }
 
-  const autocompleteOptions = popularTags
-    .map((p) => p.tag)
-    .filter(
-      (t) => inputValue.length > 0 &&
-             t.includes(inputValue.toLowerCase()) &&
-             !acceptedTags.includes(t)
-    )
-    .slice(0, 5);
+  // ── Custom tag input ────────────────────────────────────────────────────────
+  function handleKeyDown(event) {
+    if (event.key === "ArrowDown" && inputValue === debouncedInputValue && autocompleteOptions.length > 0) {
+      event.preventDefault();
+      setShowDropdown(true);
+      setActiveSuggestionIndex((index) => (index < 0 ? 0 : (index + 1) % autocompleteOptions.length));
+      return;
+    }
+
+    if (event.key === "ArrowUp" && inputValue === debouncedInputValue && autocompleteOptions.length > 0) {
+      event.preventDefault();
+      setShowDropdown(true);
+      setActiveSuggestionIndex((index) => (index < 0 ? autocompleteOptions.length - 1 : (index - 1 + autocompleteOptions.length) % autocompleteOptions.length));
+      return;
+    }
+
+    if (event.key === "Enter" && inputValue.trim()) {
+      event.preventDefault();
+      if (showDropdown && autocompleteOptions.length > 0 && inputValue === debouncedInputValue) {
+        selectAutocompleteTag(autocompleteOptions[activeSuggestionIndex] || autocompleteOptions[0]);
+        return;
+      }
+
+      const tag = normalizeTagQuery(inputValue).replace(/[^a-z0-9-]/g, "");
+      if (tag && !acceptedTags.includes(tag)) setAcceptedTags((p) => [...p, tag]);
+      setInputValue("");
+      setDebouncedInputValue("");
+      setShowDropdown(false);
+      setActiveSuggestionIndex(-1);
+      return;
+    }
+
+    if (event.key === "Escape") {
+      setShowDropdown(false);
+      setInputValue("");
+      setDebouncedInputValue("");
+      setActiveSuggestionIndex(-1);
+    }
+  }
 
   // ── Save tags ───────────────────────────────────────────────────────────────
   async function handleSave() {
@@ -176,6 +233,9 @@ export default function TicketTagManager({
       </div>
     );
   }
+
+  const isSearching = inputValue.trim().length > 0;
+  const isDebouncing = inputValue !== debouncedInputValue;
 
   return (
     <div className="space-y-4">
@@ -237,46 +297,74 @@ export default function TicketTagManager({
         </div>
       </div>
 
-      {/* ── Custom Input with Autocomplete ──────────────────────────────────── */}
+      {/* ── Custom Input with Fuzzy Autocomplete ───────────────────────────── */}
       <div className="relative">
         <input
           type="text"
           value={inputValue}
-          onChange={(e) => { setInputValue(e.target.value); setShowDropdown(true); }}
+          onChange={(event) => {
+            setInputValue(event.target.value);
+            setShowDropdown(true);
+            setActiveSuggestionIndex(-1);
+          }}
           onKeyDown={handleKeyDown}
-          onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
-          placeholder="Type a tag and press Enter..."
+          onBlur={() => window.setTimeout(() => setShowDropdown(false), 150)}
+          onFocus={() => { if (inputValue) setShowDropdown(true); }}
+          placeholder="Type a tag — similar tags will appear..."
           className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
             focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
           aria-label="Add custom tag"
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={showDropdown && isSearching}
+          aria-controls="ticket-tag-autocomplete"
+          aria-activedescendant={
+            showDropdown && autocompleteOptions[activeSuggestionIndex]
+              ? `ticket-tag-autocomplete-${activeSuggestionIndex}`
+              : undefined
+          }
         />
-        {showDropdown && autocompleteOptions.length > 0 && (
-          <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white
-            border border-gray-200 rounded-lg shadow-lg overflow-hidden">
-            {autocompleteOptions.map((tag) => (
-              <button
-                key={tag}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  if (!acceptedTags.includes(tag)) setAcceptedTags((p) => [...p, tag]);
-                  setInputValue("");
-                  setShowDropdown(false);
-                }}
-                className="w-full text-left px-3 py-2 text-sm text-gray-700
-                  hover:bg-indigo-50 transition-colors"
-              >
-                #{tag}
-              </button>
-            ))}
+        {showDropdown && isSearching && (
+          <div
+            id="ticket-tag-autocomplete"
+            role="listbox"
+            aria-label="Tag suggestions"
+            className="absolute z-20 top-full left-0 right-0 mt-1 bg-white
+              border border-gray-200 rounded-lg shadow-lg overflow-hidden"
+          >
+            {isDebouncing ? (
+              <p className="px-3 py-2 text-xs text-gray-500">Searching tags…</p>
+            ) : autocompleteOptions.length > 0 ? (
+              autocompleteOptions.map((tag, index) => (
+                <button
+                  id={`ticket-tag-autocomplete-${index}`}
+                  key={tag}
+                  type="button"
+                  role="option"
+                  aria-selected={activeSuggestionIndex === index}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => selectAutocompleteTag(tag)}
+                  className={`w-full text-left px-3 py-2 text-sm text-gray-700
+                    transition-colors ${activeSuggestionIndex === index ? "bg-indigo-50 text-indigo-700" : "hover:bg-indigo-50"}`}
+                >
+                  #{tag}
+                </button>
+              ))
+            ) : (
+              <p className="px-3 py-2 text-xs text-gray-500">
+                No saved tag matches. Press Enter to add “{inputValue.trim()}”.
+              </p>
+            )}
           </div>
         )}
         <p className="text-xs text-gray-400 mt-1">
-          Spaces become hyphens automatically. Press Enter to add.
+          Suggestions support partial matches and common typos. Press Enter to select the highlighted suggestion or add a new tag.
         </p>
       </div>
 
       {/* ── Save Button ─────────────────────────────────────────────────────── */}
       <button
+        type="button"
         onClick={handleSave}
         disabled={saving}
         className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50
